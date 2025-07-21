@@ -1,7 +1,5 @@
 package com.ledger.app.models.ledger
 
-import com.ledger.app.models.ledger.Entry
-import com.ledger.app.models.ledger.Node
 import com.ledger.app.utils.CryptoProvider
 import com.ledger.app.utils.HashProvider
 import java.util.*

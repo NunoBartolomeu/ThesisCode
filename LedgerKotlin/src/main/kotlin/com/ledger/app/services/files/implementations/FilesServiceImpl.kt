@@ -29,7 +29,7 @@ class FilesServiceImpl(
     private val FILES_LEDGER = "files_ledger"
 
     init {
-        ledgerService.createLedger(FILES_LEDGER, 10, hashProvider.algorithm, cryptoProvider.algorithm)
+        ledgerService.createLedger(FILES_LEDGER, 2, hashProvider.algorithm, cryptoProvider.algorithm)
     }
 
     override fun saveFile(userId: String, file: MultipartFile): File {

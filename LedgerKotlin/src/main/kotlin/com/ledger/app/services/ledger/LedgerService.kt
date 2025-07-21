@@ -1,7 +1,10 @@
 package com.ledger.app.services.ledger
 
 import com.ledger.app.models.ledger.Entry
+import com.ledger.app.models.ledger.Ledger
+import com.ledger.app.models.ledger.Page
 import com.ledger.app.models.ledger.PageSummary
+import com.ledger.app.utils.HashProvider
 
 interface LedgerService {
     fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String, cryptoAlgorithm: String): Boolean
@@ -24,6 +27,11 @@ interface LedgerService {
     fun getMerkleProof(entryId: String): List<ByteArray>
     fun validatePage(ledgerName: String, pageNumber: Int): Boolean
     fun validateChain(ledgerName: String): Boolean
+    fun getLedgerWithPages(ledgerName: String): Ledger?
+    fun getPage(ledgerName: String, number: Int): Page?
+    fun getEntry(entryId: String): Entry?
+    fun getHasher(): HashProvider
+
 
     fun logSystemEvent(ledgerName: String, declaringSystem: String, userId: String?, details: String)
 }

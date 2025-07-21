@@ -6,6 +6,7 @@ import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.models.ledger.Entry
 import com.ledger.app.models.ledger.Ledger
 import com.ledger.app.models.ledger.LedgerConfig
+import com.ledger.app.models.ledger.Page
 import com.ledger.app.models.ledger.PageSummary
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.CryptoProvider
@@ -240,6 +241,21 @@ class LedgerServiceSpring (
         // All pages validated
         return true
     }
+
+    override fun getLedgerWithPages(ledgerName: String): Ledger? {
+        return getLedger(ledgerName)
+    }
+
+    override fun getPage(ledgerName: String, number: Int): Page? {
+        val ledger = getLedger(ledgerName)
+        return ledger?.pages[number]
+    }
+
+    override fun getEntry(entryId: String): Entry? {
+        return ledgerRepo.getEntry(entryId)
+    }
+
+    override fun getHasher(): HashProvider = hashProvider
 
     override fun logSystemEvent(
         ledgerName: String,
