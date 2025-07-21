@@ -7,28 +7,29 @@ import {
   User,
   LogIn,
   UserPlus,
-  Shield,
-  LogOut,
-  Loader2
+  FileText,
+  Book
 } from 'lucide-react';
-import { Button } from './Button'; // adjust the path if needed
-import { useAuthViewModel } from '@/viewmodels/AuthViewModel';
+import { Button } from './Button';
+import { StorageService } from '@/viewmodels/StorageService';
+import { Token, User as UserT } from '@/types/auth';
 
 interface LayoutProps {
   children: React.ReactNode;
-  baseUrl?: string; // Optional prop to override the default auth API URL
 }
 
-export const Layout = ({ children, baseUrl = 'http://localhost:8080' }: LayoutProps) => {
+export const Layout = ({ children }: LayoutProps) => {
   const [light, setLight] = useState(false);
-  const { authState, viewModel } = useAuthViewModel(baseUrl);
-  const { user, token, isLoading } = authState;
+  const [user, setUser] = useState<UserT | null>(null); // Use proper User type if available
+  const [token, setToken] = useState<Token | null>(null); // Use proper Token type if available
+  const [isClient, setIsClient] = useState(false);
 
-  // Check if user is fully authenticated (has both user and token)
-  const isAuthenticated = !!(user && token);
-  
-  // Check if user is waiting for 2FA (has user but no token)
-  const needsTwoFA = !!(user && !token);
+  // Handle hydration by only accessing storage after component mounts
+  useEffect(() => {
+    setIsClient(true);
+    setUser(StorageService.getUser());
+    setToken(StorageService.getToken());
+  }, []);
 
   useEffect(() => {
     if (light) {
@@ -42,11 +43,113 @@ export const Layout = ({ children, baseUrl = 'http://localhost:8080' }: LayoutPr
     setLight(!light);
   };
 
+  // Don't render navigation until we're on the client side
+  const renderNavigation = () => {
+    if (!isClient) {
+      // Return a placeholder or minimal nav during SSR
+      return (
+        <div className="flex items-center space-x-6">
+          <div style={{ width: '200px' }}></div> {/* Placeholder space */}
+        </div>
+      );
+    }
 
+    return (
+      <>
+        {/* No user, no token - show Home, Login, Register */}
+        {!user && !token && (
+          <>
+            <a
+              href="/"
+              className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
+              onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
+            >
+              <Home size={18} />
+              <span>Home</span>
+            </a>
+
+            <a
+              href="/login"
+              className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
+              onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
+            >
+              <LogIn size={18} />
+              <span>Login</span>
+            </a>
+            
+            <Button as="a" href="/register" className="flex items-center space-x-2">
+              <UserPlus size={18} />
+              <span>Register</span>
+            </Button>
+          </>
+        )}
+
+        {/* User but no token - show Home and user.fullName */}
+        {user && !token && (
+          <>
+            <a
+              href="/"
+              className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
+              onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
+            >
+              <Home size={18} />
+              <span>Home</span>
+            </a>
+
+            <div className="flex items-center space-x-2" style={{ color: 'var(--text-muted)' }}>
+              <User size={16} />
+              <span className="text-sm">
+                {user.fullName}
+              </span>
+            </div>
+          </>
+        )}
+
+        {/* User and token - show Files, Ledgers and user.fullName */}
+        {user && token && (
+          <>
+            <a
+              href="/files"
+              className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
+              onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
+            >
+              <FileText size={18} />
+              <span>Files</span>
+            </a>
+
+            <a
+              href="/ledgers"
+              className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
+              onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
+            >
+              <Book size={18} />
+              <span>Ledgers</span>
+            </a>
+
+            <div className="flex items-center space-x-2" style={{ color: 'var(--text-muted)' }}>
+              <User size={16} />
+              <span className="text-sm">
+                {user.fullName}
+              </span>
+            </div>
+          </>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="min-h-screen transition-colors duration-500" style={{ backgroundColor: 'var(--bg-dark)' }}>
-      {/* Header */}
       <header
         className="shadow-sm transition-colors duration-500"
         style={{
@@ -56,88 +159,15 @@ export const Layout = ({ children, baseUrl = 'http://localhost:8080' }: LayoutPr
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Logo/Brand */}
             <div className="flex items-center">
               <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>
                 FileManager
               </h1>
             </div>
 
-            {/* Desktop Navigation */}
             <nav className="flex items-center space-x-6">
-              {/* Show loading spinner during auth initialization */}
-              {isLoading ? (
-                <div className="flex items-center space-x-2" style={{ color: 'var(--text-muted)' }}>
-                  <Loader2 size={18} className="animate-spin" />
-                  <span>Loading...</span>
-                </div>
-              ) : isAuthenticated ? (
-                // Fully authenticated user navigation (user + token present)
-                <>
-                  <a
-                    href="/files"
-                    className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
-                    style={{ color: 'var(--text-muted)' }}
-                    onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
-                    onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
-                  >
-                    <Home size={18} />
-                    <span>Files</span>
-                  </a>
-                  
-                  {/* User info display */}
-                  <div className="flex items-center space-x-2" style={{ color: 'var(--text-muted)' }}>
-                    <User size={16} />
-                    <span className="text-sm">
-                      {user.fullName || user.email}
-                    </span>
-                  </div>
+              {renderNavigation()}
 
-                  {/* Logout link */}
-                  <a
-                    href="/logout"
-                    className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
-                    style={{ color: 'var(--text-muted)' }}
-                    onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
-                    onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
-                  >
-                    <LogOut size={18} />
-                    <span>Logout</span>
-                  </a>
-                </>
-              ) : (
-                // Not logged in (includes users without token who need 2FA)
-                <>
-                  <a
-                    href="/"
-                    className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
-                    style={{ color: 'var(--text-muted)' }}
-                    onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
-                    onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
-                  >
-                    <Home size={18} />
-                    <span>Home</span>
-                  </a>
-
-                  <a
-                    href="/login"
-                    className="flex items-center space-x-2 transition-colors duration-500 hover:opacity-80"
-                    style={{ color: 'var(--text-muted)' }}
-                    onMouseEnter={(e) => (e.target as HTMLElement).style.color = 'var(--primary)'}
-                    onMouseLeave={(e) => (e.target as HTMLElement).style.color = 'var(--text-muted)'}
-                  >
-                    <LogIn size={18} />
-                    <span>Login</span>
-                  </a>
-                  
-                  <Button as="a" href="/register" className="flex items-center space-x-2">
-                    <UserPlus size={18} />
-                    <span>Register</span>
-                  </Button>
-                </>
-              )}
-
-              {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
                 className="relative inline-flex items-center justify-center w-12 h-6 rounded-full transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-offset-2"
@@ -174,12 +204,10 @@ export const Layout = ({ children, baseUrl = 'http://localhost:8080' }: LayoutPr
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 transition-opacity duration-500 opacity-100">
         {children}
       </main>
 
-      {/* Footer */}
       <footer
         className="mt-auto transition-colors duration-500"
         style={{

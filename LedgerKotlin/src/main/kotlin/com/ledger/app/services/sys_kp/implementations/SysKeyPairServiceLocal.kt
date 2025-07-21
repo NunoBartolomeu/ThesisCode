@@ -1,12 +1,11 @@
 package com.ledger.app.services.sys_kp.implementations
 
-import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.services.sys_kp.SysKeyPairService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.CryptoProvider
 import com.ledger.app.utils.HashProvider
 import com.ledger.app.utils.LogLevel
-import com.ledger.app.utils.Rgb
+import com.ledger.app.utils.RGB
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.cert.X509CertificateHolder
@@ -20,19 +19,15 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 import org.bouncycastle.util.io.pem.PemObject
 import org.bouncycastle.util.io.pem.PemWriter
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import java.math.BigInteger
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.security.KeyPair
-import java.security.PrivateKey
-import java.security.PublicKey
 import java.security.Security
 import java.security.cert.X509Certificate
 import java.time.LocalDateTime
 import java.util.Date
-import kotlin.math.log
 
 @Service
 class SysKeyPairServiceLocal(
@@ -42,7 +37,7 @@ class SysKeyPairServiceLocal(
 ): SysKeyPairService {
     private val KP_SYSTEM = "sys_key_pair_service"
     private val KP_LEDGER = "sys_key_pair_ledger"
-    private val logger = ColorLogger("SystemKeyPair", Rgb(150, 150, 50), LogLevel.DEBUG)
+    private val logger = ColorLogger("SystemKeyPair", RGB.ORANGE_BRIGHT, LogLevel.DEBUG)
     private var keyPair: KeyPair
     private var certificate: X509Certificate
 

@@ -1,37 +1,27 @@
-// Types
 export interface User {
   email: string;
   fullName: string;
 }
 
-export interface AuthToken {
+export interface Token {
   accessToken: string;
   expiresAt: Date;
 }
 
-export interface AuthState {
+export interface AuthSession {
   user: User | null;
-  token: AuthToken | null;
-  isLoading: boolean;
+  token: Token | null;
 }
 
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T | null;
-  errors?: Record<string, string>;
-  message?: string;
-}
-
-// API Request/Response types
 export interface RegisterRequest {
-  email: string;
-  passwordHash: string;
   fullName: string;
+  email: string;
+  passwordHash: number[];
 }
 
 export interface LoginRequest {
   email: string;
-  passwordHash: string;
+  passwordHash: number[];
 }
 
 export interface VerifyCodeRequest {
@@ -46,7 +36,7 @@ export interface ValidateTokenRequest {
 export interface SimpleAuthResult {
   email: string;
   fullName: string;
-  needsVerification: boolean;
+  needsVerification: Boolean;
 }
 
 export interface AuthenticatedUser {
@@ -54,4 +44,40 @@ export interface AuthenticatedUser {
   fullName: string;
   accessToken: string;
   expiresAt: number;
+}
+
+export interface FileListItem {
+  name: string;
+  size: number;
+  lastModified: Date;
+  formattedSize: string;
+  formattedDate: string;
+  fileType: string;
+  icon: string;
+}
+
+export interface FileDetailsData {
+  name: string;
+  size: number;
+  lastModified: Date;
+  formattedSize: string;
+  formattedDate: string;
+  fileType: string;
+  icon: string;
+  downloadUrl: string;
+}
+
+export interface FileDetailsDto {
+  name: string;
+  size: number;
+  createdDate: number;
+}
+
+export interface UploadFileResponse {
+  message: string;
+  fileName: string;
+}
+
+export interface ListFilesResponse {
+  files: { name: string; size: number; lastModified: number }[];
 }

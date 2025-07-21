@@ -4,7 +4,7 @@ import com.ledger.app.services.auth.AuthRepo
 import com.ledger.app.services.auth.implementations.AuthServiceSpring
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
-import com.ledger.app.utils.Rgb
+import com.ledger.app.utils.RGB
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -19,7 +19,7 @@ class JwtAuthenticationFilter(
     private val repo: AuthRepo
 ) : OncePerRequestFilter() {
 
-    private val logger = ColorLogger("JwtAuthenticationFilter", Rgb(255, 100, 100), LogLevel.DEBUG)
+    private val logger = ColorLogger("JwtAuthenticationFilter", RGB.PINK_SALMON, LogLevel.DEBUG)
 
     override fun doFilterInternal(
         request: HttpServletRequest,
@@ -34,47 +34,22 @@ class JwtAuthenticationFilter(
         val authHeader = request.getHeader("Authorization")
 
         if (authHeader?.startsWith("Bearer ") == true) {
-            logger.debug("Authorization header found with Bearer token")
-
             val token = authHeader.removePrefix("Bearer ").trim()
-            logger.debug("Extracted JWT token (length: ${token.length})")
-
             try {
                 // Now JWT tokens contain email, not userId
                 val email = jwtUtil.validateAndGetSubject(token)
 
                 if (email != null) {
-                    logger.info("JWT token valid for email: $email")
-
                     // Get user by email instead of userId
                     val user = repo.getUserByEmail(email)
                     if (user != null) {
-                        logger.info("User found in database for email: $email")
                         val auth = UsernamePasswordAuthenticationToken(user, null, emptyList())
                         SecurityContextHolder.getContext().authentication = auth
-                        logger.info("Authentication successful for $email on $method $requestUri")
-                    } else {
-                        logger.warn("⚠️  JWT token valid but user not found in database for email: $email")
-                        logger.warn("⚠️  Request will be BOUNCED: $method $requestUri")
+                        //logger.info("Authentication successful for $email on $method $requestUri")
                     }
-                } else {
-                    logger.warn("⚠️  JWT token validation failed - invalid or expired token")
-                    logger.warn("⚠️  Request will be BOUNCED: $method $requestUri")
                 }
             } catch (e: Exception) {
-                logger.error("⚠️  JWT token processing error: ${e.message}")
-                logger.error("⚠️  Request will be BOUNCED: $method $requestUri")
-            }
-        } else {
-            // Check if this is a permitted endpoint
-            val permittedEndpoints = listOf("/auth/register", "/auth/login", "/auth/verify")
-            val isPermitted = permittedEndpoints.any { requestUri.startsWith(it) }
-
-            if (isPermitted) {
-                logger.debug("No Authorization header - but endpoint is permitted: $requestUri")
-            } else {
-                logger.warn("⚠️  No Authorization header found for protected endpoint")
-                logger.warn("⚠️  Request will be BOUNCED: $method $requestUri")
+                logger.error(e.message!!)
             }
         }
 
@@ -82,9 +57,9 @@ class JwtAuthenticationFilter(
 
         // Log the response status after processing
         if (response.status >= 400) {
-            logger.error("🚫 Request BOUNCED with status ${response.status}: $method $requestUri")
+            logger.error("Request BOUNCED with status ${response.status}: $method $requestUri")
         } else {
-            logger.debug("✅ Request processed successfully with status ${response.status}: $method $requestUri")
+            logger.debug("Request processed successfully with status ${response.status}: $method $requestUri")
         }
     }
 }

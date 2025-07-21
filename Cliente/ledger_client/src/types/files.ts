@@ -60,3 +60,14 @@ export interface FileDetailsData {
   icon: string;
   downloadUrl: string;
 }
+
+export interface FileDetailsDto {
+  originalFileName: string;
+  actualFileName: string;
+  fileSize: number;
+  contentType?: string;
+  uploadedAt: number;
+  lastAccessed?: number | null;
+  ownerFullName?: string;
+  ownerEmail?: string;
+}

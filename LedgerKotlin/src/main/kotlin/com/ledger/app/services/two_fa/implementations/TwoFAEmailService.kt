@@ -3,8 +3,8 @@ package com.ledger.app.services.two_fa.implementations
 import com.ledger.app.services.two_fa.TwoFAService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
-import com.ledger.app.utils.Rgb
-import org.springframework.beans.factory.annotation.Value
+import com.ledger.app.utils.RGB
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
@@ -12,7 +12,7 @@ import kotlin.random.Random
 @Service
 class TwoFAEmailService (
     private val emailSender: EmailSender,
-    @Value("\${twofactor.test:false}") private val test: Boolean
+    @Qualifier("twoFATestFlag") private val test: Boolean
 ) : TwoFAService {
 
     companion object {
@@ -20,13 +20,13 @@ class TwoFAEmailService (
         private const val EXPIRATION_TIME_MS = 5 * 60 * 1000
     }
 
-    private val logger = ColorLogger("2FAService", Rgb(50, 50, 150), LogLevel.DEBUG)
+    private val logger = ColorLogger("2FAService", RGB.CYAN_SOFT, LogLevel.DEBUG)
 
     private val codeStorage = ConcurrentHashMap<String, VerificationCode>()
 
     override fun sendCode(email: String): Boolean {
         if (test) {
-            logger.debug("2FA is in TEST mode")
+            logger.debug("2FA is in TEST mode, code not actually sent")
             return true
         }
 
@@ -43,6 +43,11 @@ class TwoFAEmailService (
     }
 
     override fun verifyCode(email: String, code: String): Boolean {
+        if (test) {
+            logger.debug("2FA is in TEST mode, code not actually verified")
+            return true
+        }
+
         val entry = codeStorage[email] ?: return false
         val now = System.currentTimeMillis()
 

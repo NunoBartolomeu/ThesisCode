@@ -71,6 +71,12 @@ buildNumber.properties
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
 
+# File manager output directory
+uploads
+
+# Key manager output directory
+config
+
 # Spring Boot
 application-*.properties
 application-*.yml

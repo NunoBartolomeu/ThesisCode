@@ -6,21 +6,109 @@ import {
   UploadFileResponse, 
   ListFilesResponse, 
   DeleteFileResponse, 
-  ApiErrorResponse 
+  ApiErrorResponse, 
+  FileDetailsDto
 } from '@/types/files';
 
 export class FilesViewModel {
   private baseUrl: string;
-  private token: string | null;
 
-  constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-    this.token = this.getAuthToken();
+  constructor(baseUrl?: string) {
+    this.baseUrl = (baseUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/$/, '');
   }
+
+
+  // Add this method to your FilesViewModel class
+
+  async getFileDetails(fileName: string): Promise<FileDetailsData> {
+    try {
+      const response = await fetch(`/file/details/${encodeURIComponent(fileName)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          // Add your auth headers here
+          // 'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get file details: ${response.status}`);
+      }
+
+      const dto: FileDetailsDto = await response.json();
+      
+      // Transform backend DTO to frontend FileDetailsData
+      return this.transformToFileDetailsData(dto);
+    } catch (error) {
+      console.error('Error getting file details:', error);
+      throw error;
+    }
+  }
+
+  private transformToFileDetailsData(dto: FileDetailsDto): FileDetailsData {
+    const lastModified = new Date(dto.createdDate);
+    const fileExtension = dto.name.split('.').pop()?.toLowerCase() || '';
+    
+    return {
+      name: dto.name,
+      size: dto.size,
+      lastModified: lastModified,
+      formattedSize: this.formatBytes(dto.size),
+      formattedDate: lastModified.toLocaleDateString() + ' ' + lastModified.toLocaleTimeString(),
+      fileType: this.getFileTypeFromExtension(fileExtension),
+      icon: this.getIconFromFileType(this.getFileTypeFromExtension(fileExtension)),
+      downloadUrl: `/file/download/${encodeURIComponent(dto.name)}`
+    };
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  private getFileTypeFromExtension(extension: string): string {
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'];
+    const documentExts = ['pdf', 'doc', 'docx', 'txt', 'rtf'];
+    const spreadsheetExts = ['xls', 'xlsx', 'csv'];
+    
+    if (imageExts.includes(extension)) {
+      return 'image';
+    } else if (documentExts.includes(extension)) {
+      return 'document';
+    } else if (spreadsheetExts.includes(extension)) {
+      return 'spreadsheet';
+    }
+    return 'file';
+  }
+
+  private getIconFromFileType(fileType: string): string {
+    // Return appropriate icon identifier based on your icon system
+    return fileType;
+  }
+
+
+
+
+
+
+
+
+
 
   private getAuthToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('authToken');
+      try {
+        const storedToken = localStorage.getItem('auth_token');
+        if (!storedToken) return null;
+        const tokenData = JSON.parse(storedToken);
+        return tokenData.accessToken;
+      } catch (error) {
+        console.error('Failed to retrieve auth token:', error);
+        return null;
+      }
     }
     return null;
   }
@@ -30,8 +118,9 @@ export class FilesViewModel {
       'Content-Type': 'application/json',
     };
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     return headers;
@@ -40,9 +129,11 @@ export class FilesViewModel {
   private getFileUploadHeaders(): HeadersInit {
     const headers: HeadersInit = {};
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
+    // Note: Don't set Content-Type for FormData - let browser set it with boundary
 
     return headers;
   }
@@ -58,8 +149,14 @@ export class FilesViewModel {
     });
 
     if (!response.ok) {
-      const errorData: ApiErrorResponse = await response.json();
-      throw new Error(errorData.error || 'Upload failed');
+      let errorMessage = 'Upload failed';
+      try {
+        const errorData: ApiErrorResponse = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -72,8 +169,14 @@ export class FilesViewModel {
     });
 
     if (!response.ok) {
-      const errorData: ApiErrorResponse = await response.json();
-      throw new Error(errorData.error || 'Failed to fetch files');
+      let errorMessage = 'Failed to fetch files';
+      try {
+        const errorData: ApiErrorResponse = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
 
     const data: ListFilesResponse = await response.json();
@@ -91,31 +194,17 @@ export class FilesViewModel {
       if (response.status === 404) {
         throw new Error('File not found');
       }
-      const errorData: ApiErrorResponse = await response.json();
-      throw new Error(errorData.error || 'Failed to delete file');
+      let errorMessage = 'Failed to delete file';
+      try {
+        const errorData: ApiErrorResponse = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
   }
 
-  public async getFileDetails(fileName: string): Promise<FileDetailsData> {
-    // First, get the file info from the list
-    const files = await this.listFiles();
-    const file = files.find(f => f.name === fileName);
-    
-    if (!file) {
-      throw new Error('File not found');
-    }
-
-    return {
-      name: file.name,
-      size: file.size,
-      lastModified: file.lastModified,
-      formattedSize: file.formattedSize,
-      formattedDate: file.formattedDate,
-      fileType: file.fileType,
-      icon: file.icon,
-      downloadUrl: `${this.baseUrl}/file/download/${encodeURIComponent(fileName)}`,
-    };
-  }
 
   public getDownloadUrl(fileName: string): string {
     return `${this.baseUrl}/file/download/${encodeURIComponent(fileName)}`;
@@ -126,11 +215,17 @@ export class FilesViewModel {
     
     const response = await fetch(downloadUrl, {
       method: 'GET',
-      headers: this.getFileUploadHeaders(), // No content-type for download
+      headers: this.getFileUploadHeaders(), // Use auth headers for download
     });
 
     if (!response.ok) {
-      throw new Error('Failed to download file');
+      let errorMessage = 'Failed to download file';
+      if (response.status === 404) {
+        errorMessage = 'File not found';
+      } else if (response.status === 401) {
+        errorMessage = 'Unauthorized - please login again';
+      }
+      throw new Error(errorMessage);
     }
 
     // Create blob and download
@@ -182,26 +277,6 @@ export class FilesViewModel {
 
   private getFileExtension(fileName: string): string {
     return fileName.split('.').pop()?.toLowerCase() || '';
-  }
-
-  private getFileTypeFromExtension(extension: string): string {
-    const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'];
-    const documentTypes = ['pdf', 'doc', 'docx', 'txt', 'rtf'];
-    const spreadsheetTypes = ['xls', 'xlsx', 'csv'];
-    const presentationTypes = ['ppt', 'pptx'];
-    const archiveTypes = ['zip', 'rar', '7z', 'tar', 'gz'];
-    const videoTypes = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv'];
-    const audioTypes = ['mp3', 'wav', 'flac', 'aac', 'ogg'];
-
-    if (imageTypes.includes(extension)) return 'image';
-    if (documentTypes.includes(extension)) return 'document';
-    if (spreadsheetTypes.includes(extension)) return 'spreadsheet';
-    if (presentationTypes.includes(extension)) return 'presentation';
-    if (archiveTypes.includes(extension)) return 'archive';
-    if (videoTypes.includes(extension)) return 'video';
-    if (audioTypes.includes(extension)) return 'audio';
-
-    return 'file';
   }
 
   private getFileIcon(fileType: string): string {

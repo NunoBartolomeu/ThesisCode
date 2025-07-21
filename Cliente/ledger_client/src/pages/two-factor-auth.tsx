@@ -3,34 +3,24 @@ import { useState, useRef, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/Button';
 import { useRouter } from 'next/router'; // or your routing solution
-import { useAuthViewModel } from '@/viewmodels/AuthViewModel';
+import { AuthService } from '@/viewmodels/AuthService';
+import { StorageService } from '@/viewmodels/StorageService';
 
 export default function TwoFactorAuthPage() {
   const [code, setCode] = useState(['', '', '', '', '', '']);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const router = useRouter();
 
-  const { authState, viewModel } = useAuthViewModel();
-  const router = useRouter(); // Replace with your routing solution
-
-  // Focus first input on mount
+  const authService = new AuthService();
+  
   useEffect(() => {
     if (inputRefs.current[0]) {
       inputRefs.current[0].focus();
     }
   }, []);
-
-  // Handle navigation based on auth state changes
-  useEffect(() => {
-    if (authState.isLoading || !authState.user) {
-      return
-    }
-    if (authState.token) {
-      router.push('/files');
-    } else {
-      router.push('/two-factor-auth');
-    }
-  }, [authState.token, authState.user, authState.isLoading, router]);
 
   const handleInputChange = (index: number, value: string) => {
     // Only allow digits
@@ -47,65 +37,70 @@ export default function TwoFactorAuthPage() {
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-      // Move to previous input on backspace if current is empty
-      if (e.key === 'Backspace' && !code[index] && index > 0) {
-        inputRefs.current[index - 1]?.focus();
+    // Move to previous input on backspace if current is empty
+    if (e.key === 'Backspace' && !code[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+    
+    // Move to next input on arrow right
+    if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+    
+    // Move to previous input on arrow left
+    if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+    
+    // Submit form on Enter if on last digit and all digits are filled
+    if (e.key === 'Enter' && index === 5) {
+      const fullCode = code.join('');
+      if (fullCode.length === 6) {
+        handleSubmit(e as any);
       }
-      
-      // Move to next input on arrow right
-      if (e.key === 'ArrowRight' && index < 5) {
-        inputRefs.current[index + 1]?.focus();
-      }
-      
-      // Move to previous input on arrow left
-      if (e.key === 'ArrowLeft' && index > 0) {
-        inputRefs.current[index - 1]?.focus();
-      }
-    };
+    }
+  };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    
+    if (isSubmitting) return; // Prevent double submission
+    
+    setErrors({});
     
     const fullCode = code.join('');
     
     if (fullCode.length !== 6) {
-      setError('Please enter all 6 digits');
+      setErrors({ code: 'Please enter all 6 digits' });
       return;
     }
     
-    
-    const result = await viewModel.verify2FA(fullCode);
-    
-    if (!result.success) {
-      setError(result.message || result.errors?.code || '2FA verification failed');
-      // Clear the code on error
+    setIsSubmitting(true);
+
+    try {
+      const result = await authService.verify2FA(fullCode);
+      
+      if (!result.success) {
+        setErrors({ 
+          general: 'Wrong code. Please click resend to get a new one or try again.' 
+        });
+        // Clear the code inputs since server removes the code on attempt
+        setCode(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
+      } else {
+        // Success - redirect to files
+        router.push('/files');
+      }
+    } catch (error) {
+      setErrors({ general: 'An unexpected error occurred. Please try again.' });
       setCode(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
-    } 
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleResendCode = async () => {
-    setError('');
-    // You can implement this in your AuthViewModel if needed
-  };
-
-  // Show loading state
-  if (authState.isLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center py-0 px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-lg" style={{ color: 'var(--text)' }}>Loading...</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
-  // UPDATED: Show error state if not in 2FA state (instead of checking sessionData)
-  if (!authState.user) {
+  if (!StorageService.getUser()) {
     return (
       <Layout>
         <div className="flex items-center justify-center py-0 px-4 sm:px-6 lg:px-8">
@@ -165,9 +160,9 @@ export default function TwoFactorAuthPage() {
             <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
               Enter the 6-digit code from your authenticator app
             </p>
-            {authState.user.email && (
+            {StorageService.getUser()?.email && (
               <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                Code sent to {authState.user.email}
+                Code sent to {StorageService.getUser()?.email}
               </p>
             )}
           </div>
@@ -186,15 +181,18 @@ export default function TwoFactorAuthPage() {
                   value={digit}
                   onChange={(e) => handleInputChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-12 h-12 text-center text-xl font-bold border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-colors"
+                  disabled={isSubmitting}
+                  className="w-12 h-12 text-center text-xl font-bold border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: 'var(--bg-light)',
                     borderColor: 'var(--border)',
                     color: 'var(--text)',
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--primary)';
-                    e.currentTarget.style.boxShadow = `0 0 0 2px rgba(var(--primary-rgb), 0.2)`;
+                    if (!isSubmitting) {
+                      e.currentTarget.style.borderColor = 'var(--primary)';
+                      e.currentTarget.style.boxShadow = `0 0 0 2px rgba(var(--primary-rgb), 0.2)`;
+                    }
                   }}
                   onBlur={(e) => {
                     e.currentTarget.style.borderColor = 'var(--border)';
@@ -205,7 +203,7 @@ export default function TwoFactorAuthPage() {
               ))}
             </div>
 
-            {error && (
+            {errors.code && (
               <div
                 className="rounded-md p-4 border-2"
                 style={{
@@ -214,28 +212,31 @@ export default function TwoFactorAuthPage() {
                   color: 'var(--text)',
                 }}
               >
-                <div className="text-sm font-medium text-center">{error}</div>
+                <div className="text-sm font-medium text-center">{errors.code}</div>
+              </div>
+            )}
+
+            {errors.general && (
+              <div
+                className="rounded-md p-4 border-2"
+                style={{
+                  backgroundColor: 'var(--danger)',
+                  borderColor: 'var(--danger)',
+                  color: 'var(--text)',
+                }}
+              >
+                <div className="text-sm font-medium text-center">{errors.general}</div>
               </div>
             )}
 
             <Button 
               type="submit" 
-              isLoading={authState.isLoading} 
+              isLoading={isSubmitting} 
+              disabled={isSubmitting}
               className="w-full"
             >
-              Verify Code
+              {isSubmitting ? 'Verifying...' : 'Verify Code'}
             </Button>
-
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={handleResendCode}
-                className="text-sm font-medium hover:underline transition-colors"
-                style={{ color: 'var(--primary)' }}
-              >
-                Didn't receive a code? Resend
-              </button>
-            </div>
 
             <div className="text-center">
               <a 

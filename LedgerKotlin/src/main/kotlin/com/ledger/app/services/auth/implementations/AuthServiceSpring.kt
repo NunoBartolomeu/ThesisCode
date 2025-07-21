@@ -11,7 +11,7 @@ import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.CryptoProvider
 import com.ledger.app.utils.HashProvider
 import com.ledger.app.utils.LogLevel
-import com.ledger.app.utils.Rgb
+import com.ledger.app.utils.RGB
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import io.jsonwebtoken.security.Keys
@@ -25,8 +25,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class AuthServiceSpring(
-    private val hashProvider: HashProvider,
-    private val cryptoProvider: CryptoProvider,
+    hashProvider: HashProvider,
+    cryptoProvider: CryptoProvider,
     private val repo: AuthRepo,
     private val ledgerService: LedgerService,
     private val twoFAService: TwoFAService,
@@ -36,7 +36,7 @@ class AuthServiceSpring(
     private val AUTH_SYSTEM = "auth_service"
     private val AUTH_LEDGER = "auth_ledger"
 
-    private val logger = ColorLogger("AuthService", Rgb(50, 150, 50), LogLevel.DEBUG)
+    private val logger = ColorLogger("AuthService", RGB.GREEN_LIME, LogLevel.DEBUG)
     private val activeTokens = ConcurrentHashMap<String, String>()
 
     companion object {
@@ -195,6 +195,10 @@ class AuthServiceSpring(
             accessToken = token,
             expiresAt = jwtUtil.getExpirationTime(token)
         )
+    }
+
+    override fun getUserInfo(userId: String): User? {
+        return repo.getUser(userId)
     }
 
     override fun logoutUser(token: String) {

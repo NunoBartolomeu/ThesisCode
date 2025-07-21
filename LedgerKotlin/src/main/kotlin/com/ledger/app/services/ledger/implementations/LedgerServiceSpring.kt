@@ -11,7 +11,7 @@ import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.CryptoProvider
 import com.ledger.app.utils.HashProvider
 import com.ledger.app.utils.LogLevel
-import com.ledger.app.utils.Rgb
+import com.ledger.app.utils.RGB
 import org.springframework.stereotype.Service
 
 @Service
@@ -21,7 +21,7 @@ class LedgerServiceSpring (
     private val cryptoProvider: CryptoProvider,
     private val sysKeyPairServiceLocal: SysKeyPairServiceLocal
 ) : LedgerService {
-    private val logger = ColorLogger("LedgerService", Rgb(150, 50, 50), LogLevel.DEBUG)
+    private val logger = ColorLogger("LedgerService", RGB.RED_BRIGHT, LogLevel.DEBUG)
     private val activeLedgers = mutableMapOf<String, Ledger>()
 
     override fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String, cryptoAlgorithm: String): Boolean {

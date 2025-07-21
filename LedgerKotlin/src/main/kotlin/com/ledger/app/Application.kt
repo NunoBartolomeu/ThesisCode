@@ -28,6 +28,8 @@ class AppConfig{
     fun cryptoProvider(): CryptoProvider = RSACryptoProvider()
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
+    @Bean
+    fun twoFATestFlag(): Boolean = true // true = test mode
 }
 
 @Component

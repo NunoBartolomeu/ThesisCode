@@ -1,10 +1,10 @@
 import '../app/globals.css';
 import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
-import { useRouter } from 'next/router'; // or your routing solution
+import { useRouter } from 'next/router';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { useAuthViewModel } from '@/viewmodels/AuthViewModel';
+import { AuthService } from '@/viewmodels/AuthService';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
@@ -13,21 +13,9 @@ export default function RegisterPage() {
   const [verifyPassword, setVerifyPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const router = useRouter(); // Replace with your routing solution
+  const router = useRouter();
 
-  const { authState, viewModel } = useAuthViewModel();
-
-  // Handle navigation based on auth state changes
-  useEffect(() => {
-    if (authState.isLoading || !authState.user) {
-      return
-    }
-    if (authState.token) {
-      router.push('/files');
-    } else {
-      router.push('/two-factor-auth');
-    }
-  }, [authState.token, authState.user, authState.isLoading, router]);
+  const authService = new AuthService();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,13 +23,13 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
-      const result = await viewModel.register(fullName, email, password, verifyPassword);
+      const result = await authService.register(fullName, email, password, verifyPassword);
 
       if (!result.success) {
         setErrors(result.errors || { general: result.message || 'Registration failed' });
+      } else if (result.data?.needsVerification) {
+        router.push('/two-factor-auth');
       }
-      // Note: Don't handle redirection here - let the useEffect handle it
-      // based on authState changes
     } catch (error) {
       setErrors({ general: 'An unexpected error occurred. Please try again.' });
     } finally {
@@ -50,7 +38,6 @@ export default function RegisterPage() {
   };
 
   const handleInputChange = (field: string, value: string) => {
-    // Clear field-specific error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -70,21 +57,6 @@ export default function RegisterPage() {
         break;
     }
   };
-
-  // Show loading state while initializing
-  if (authState.isLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
-                 style={{ borderColor: 'var(--primary)' }}></div>
-            <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>

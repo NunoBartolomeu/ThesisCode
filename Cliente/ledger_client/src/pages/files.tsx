@@ -250,7 +250,7 @@ export default function FilesPage() {
                   <FileRow 
                     key={file.name} 
                     file={file} 
-                    onFileClick={(fileName) => router.push(`/file-details/${encodeURIComponent(fileName)}`)}
+                    onFileClick={(fileName) => router.push(`/file-details?file=${encodeURIComponent(fileName)}`)}
                     onDeleteClick={handleDeleteFile}
                     getFileIconSvg={getFileIconSvg}
                   />

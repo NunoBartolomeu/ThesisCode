@@ -1,10 +1,10 @@
 import '../app/globals.css';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router'; // or your routing solution
+import { useRouter } from 'next/router';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { useAuthViewModel } from '@/viewmodels/AuthViewModel';
+import { AuthService } from '@/viewmodels/AuthService';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -12,20 +12,8 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { authState, viewModel } = useAuthViewModel();
-  const router = useRouter(); // Replace with your routing solution
-
-  // Handle navigation based on auth state changes
-  useEffect(() => {
-    if (authState.isLoading || !authState.user) {
-      return
-    }
-    if (authState.token) {
-      router.push('/files');
-    } else {
-      router.push('/two-factor-auth');
-    }
-  }, [authState.token, authState.user, authState.isLoading, router]);
+  const authService = new AuthService()
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +24,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const result = await viewModel.login(email, password);
+      const result = await authService.login(email, password);
       if (!result.success) {
         setErrors(result.errors || { general: result.message || 'Login failed' });
       } else if (result.data?.needsVerification) {
@@ -48,20 +36,6 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-
-  // Show loading spinner if initializing auth
-  if (authState.isLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>

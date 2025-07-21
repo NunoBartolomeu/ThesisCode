@@ -6,7 +6,7 @@ import com.ledger.app.models.SimpleAuthResult
 import com.ledger.app.services.auth.AuthService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
-import com.ledger.app.utils.Rgb
+import com.ledger.app.utils.RGB
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/auth")
 class AuthController(private val authService: AuthService) {
 
-    private val logger = ColorLogger("AuthController", Rgb(50, 200, 50), LogLevel.DEBUG)
+    private val logger = ColorLogger("AuthController", RGB.GREEN_DARK, LogLevel.DEBUG)
 
     @PostMapping("/register")
     fun register(@RequestBody request: RegisterRequest): ResponseEntity<SimpleAuthResult> {

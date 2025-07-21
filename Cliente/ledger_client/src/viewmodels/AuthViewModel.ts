@@ -492,6 +492,7 @@ export class AuthViewModel {
         } else {
             debugLog("Clearing token because it was not valid, or expired", "WARN")
             this.clearToken();
+            this.clearUser();
         }
       }
 

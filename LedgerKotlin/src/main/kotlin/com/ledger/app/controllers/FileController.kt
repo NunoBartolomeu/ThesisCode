@@ -1,9 +1,10 @@
 package com.ledger.app.controllers
 
+import com.ledger.app.dtos.FileDetailsDto
 import com.ledger.app.services.files.FilesService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
-import com.ledger.app.utils.Rgb
+import com.ledger.app.utils.RGB
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -17,7 +18,7 @@ import org.springframework.web.multipart.MultipartFile
 @RequestMapping("/file")
 class FileController(private val filesService: FilesService) {
 
-    private val logger = ColorLogger("FileController", Rgb(120, 120, 255), LogLevel.DEBUG)
+    private val logger = ColorLogger("FileController", RGB.BLUE_DARK, LogLevel.DEBUG)
 
     @PostMapping("/upload")
     fun uploadFile(
@@ -107,6 +108,34 @@ class FileController(private val filesService: FilesService) {
             logger.error("Error listing files: ${e.message}")
             ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(mapOf("error" to "Failed to list files: ${e.message}"))
+        }
+    }
+
+    @GetMapping("/details/{fileName}")
+    fun getFileDetails(
+        @PathVariable fileName: String,
+        authentication: Authentication
+    ): ResponseEntity<FileDetailsDto> {
+        return try {
+            val user = authentication.principal
+            val userId = getUserId(user)
+
+            logger.debug("Getting file details for $fileName for user $userId")
+
+            val fileDetails = filesService.getFileDetails(userId, fileName)
+
+            if (fileDetails != null) {
+                logger.info("File details retrieved successfully: $fileName")
+                logger.debug("Files details: $fileDetails")
+                ResponseEntity.ok(fileDetails)
+            } else {
+                logger.warn("File not found: $fileName for user $userId")
+                ResponseEntity.notFound().build()
+            }
+
+        } catch (e: Exception) {
+            logger.error("Error getting file details: ${e.message}")
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
         }
     }
 

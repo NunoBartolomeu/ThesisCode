@@ -7,7 +7,7 @@ import com.ledger.app.services.rbac.RBACRepo
 import com.ledger.app.services.rbac.RBACService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
-import com.ledger.app.utils.Rgb
+import com.ledger.app.utils.RGB
 
 class RBACServiceSpring(
     private val repo: RBACRepo,
@@ -15,7 +15,7 @@ class RBACServiceSpring(
 ): RBACService {
     private val RBAC_SYSTEM = "rbac"
     private val RBAC_LEDGER = "rbac_ledger"
-    private val logger = ColorLogger("RbacService", Rgb(50, 150, 150), LogLevel.DEBUG)
+    private val logger = ColorLogger("RbacService", RGB.ORANGE_SOFT, LogLevel.DEBUG)
 
     override fun hasPermission(userId: String, resource: String, action: String): Boolean {
         val direct = repo.getUserPermissions(userId).any { it.resource == resource && it.action == action }

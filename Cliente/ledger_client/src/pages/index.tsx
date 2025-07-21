@@ -1,26 +1,10 @@
 import '../app/globals.css';
-import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/Button';
-import { ThemeProvider } from 'next-themes';
-import { useAuthViewModel } from '@/viewmodels/AuthViewModel';
 
 export default function WelcomePage() {
   const router = useRouter();
-  const { authState, viewModel } = useAuthViewModel();
-
-  // Handle navigation based on auth state changes
-  useEffect(() => {
-    if (authState.isLoading || !authState.user) {
-      return
-    }
-    if (authState.token) {
-      router.push('/files');
-    } else {
-      router.push('/two-factor-auth');
-    }
-  }, [authState.token, authState.user, authState.isLoading, router]);
 
   return (
     <Layout>
