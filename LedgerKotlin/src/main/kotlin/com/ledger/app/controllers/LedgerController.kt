@@ -22,7 +22,9 @@ class LedgerController(
 
     @GetMapping("/available")
     fun getAvailableLedgers(): ResponseEntity<List<String>> {
+        logger.debug("Fetching available ledgers")
         val ledgers = ledgerService.getAvailableLedgers()
+        logger.info("Found ${ledgers.size} ledgers")
         return ResponseEntity.ok(ledgers)
     }
 
@@ -31,7 +33,9 @@ class LedgerController(
         @PathVariable entryId: String,
         @RequestBody keywords: List<String>
     ): ResponseEntity<Map<String, String>> {
+        logger.info("Adding keywords to entry $entryId: $keywords")
         ledgerService.addKeywords(entryId, keywords)
+        logger.debug("Keywords added to entry $entryId")
         return ResponseEntity.ok(mapOf("message" to "Keywords added"))
     }
 
@@ -40,7 +44,9 @@ class LedgerController(
         @PathVariable entryId: String,
         @PathVariable keyword: String
     ): ResponseEntity<Map<String, String>> {
+        logger.info("Removing keyword '$keyword' from entry $entryId")
         ledgerService.removeKeyword(entryId, keyword)
+        logger.debug("Keyword removed from entry $entryId")
         return ResponseEntity.ok(mapOf("message" to "Keyword removed"))
     }
 
@@ -50,7 +56,13 @@ class LedgerController(
         authentication: Authentication
     ): ResponseEntity<LedgerDTO> {
         val userId = getUserId(authentication.principal)
-        val ledger = ledgerService.getLedger(ledgerName) ?: return ResponseEntity.notFound().build()
+        logger.info("Fetching ledger: $ledgerName for user $userId")
+        val ledger = ledgerService.getLedger(ledgerName)
+        if (ledger == null) {
+            logger.warn("Ledger $ledgerName not found")
+            return ResponseEntity.notFound().build()
+        }
+        logger.debug("Ledger $ledgerName fetched successfully")
         return ResponseEntity.ok(ledger.toLedgerDTO(userId))
     }
 
@@ -61,8 +73,13 @@ class LedgerController(
         authentication: Authentication
     ): ResponseEntity<PageDTO> {
         val userId = getUserId(authentication.principal)
+        logger.info("Fetching page $pageNumber of ledger $ledgerName for user $userId")
         val page = ledgerService.getPage(ledgerName, pageNumber)
-            ?: return ResponseEntity.notFound().build()
+        if (page == null) {
+            logger.warn("Page $pageNumber of ledger $ledgerName not found")
+            return ResponseEntity.notFound().build()
+        }
+        logger.debug("Page $pageNumber of ledger $ledgerName fetched successfully")
         return ResponseEntity.ok(page.toPageDTO(userId))
     }
 
@@ -72,23 +89,34 @@ class LedgerController(
         authentication: Authentication
     ): ResponseEntity<EntryDTO> {
         val userId = getUserId(authentication.principal)
-        val entry = ledgerService.getEntry(entryId) ?: return ResponseEntity.notFound().build()
+        logger.info("Fetching entry $entryId for user $userId")
+        val entry = ledgerService.getEntry(entryId)
+        if (entry == null) {
+            logger.warn("Entry $entryId not found")
+            return ResponseEntity.notFound().build()
+        }
+        logger.debug("Entry $entryId fetched successfully")
         return ResponseEntity.ok(entry.toDTO(userId))
     }
 
     private fun getUserId(user: Any): String {
-        return when {
-            user.javaClass.getDeclaredField("id") != null -> {
-                val field = user.javaClass.getDeclaredField("id")
-                field.isAccessible = true
-                field.get(user).toString()
+        return try {
+            when {
+                user.javaClass.getDeclaredField("id") != null -> {
+                    val field = user.javaClass.getDeclaredField("id")
+                    field.isAccessible = true
+                    field.get(user).toString()
+                }
+                user.javaClass.getDeclaredField("userId") != null -> {
+                    val field = user.javaClass.getDeclaredField("userId")
+                    field.isAccessible = true
+                    field.get(user).toString()
+                }
+                else -> user.toString()
             }
-            user.javaClass.getDeclaredField("userId") != null -> {
-                val field = user.javaClass.getDeclaredField("userId")
-                field.isAccessible = true
-                field.get(user).toString()
-            }
-            else -> user.toString()
+        } catch (e: Exception) {
+            logger.warn("Failed to extract user ID: ${e.message}")
+            user.toString()
         }
     }
 
@@ -124,17 +152,13 @@ class LedgerController(
     }
 
     private fun resolveName(id: String): String {
-        // TODO Send fullName not id
+        // TODO Replace with real name resolution
         return id
     }
 
     private fun Ledger.toLedgerDTO(userId: String): LedgerDTO {
-
-        println("Ledger.toLedgerDTO")
-        println(this)
-        println("Holding entries (${holdingArea.count()}): $holdingArea")
-
-        val dto = LedgerDTO(
+        logger.debug("Converting Ledger model to DTO for user $userId")
+        return LedgerDTO(
             name = config.name,
             entriesPerPage = config.entriesPerPage,
             hashAlgorithm = config.hashAlgorithm,
@@ -142,7 +166,6 @@ class LedgerController(
             holdingEntries = holdingArea.map { it.toPageEntryDTO(userId) },
             pages = pages.map { it.toPageSummary().toDTO() }
         )
-        return dto
     }
 
     private fun PageSummary.toDTO(): PageSummaryDTO {
@@ -152,6 +175,7 @@ class LedgerController(
             entryCount = entryCount
         )
     }
+
     private fun Entry.toPageEntryDTO(userId: String): PageEntryDTO {
         val isParticipant = senders.contains(userId) || recipients.contains(userId)
         return PageEntryDTO(
@@ -162,13 +186,13 @@ class LedgerController(
 
     private fun Page.toPageDTO(userId: String): PageDTO {
         return PageDTO(
-            this.ledgerName,
-            this.number,
-            this.timestamp,
-            this.previousHash,
-            this.entries.count(),
-            this.hash,
-            this.entries.map { it.toPageEntryDTO(userId) }
+            ledgerName = ledgerName,
+            number = number,
+            timestamp = timestamp,
+            previousHash = previousHash,
+            entryCount = entries.count(),
+            hash = hash,
+            entries = entries.map { it.toPageEntryDTO(userId) }
         )
     }
 }
