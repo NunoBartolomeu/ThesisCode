@@ -7,7 +7,6 @@ import com.ledger.app.models.ledger.Page
 import com.ledger.app.models.ledger.PageSummary
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.HashProvider
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
 import org.springframework.http.ResponseEntity
@@ -51,7 +50,7 @@ class LedgerController(
         authentication: Authentication
     ): ResponseEntity<LedgerDTO> {
         val userId = getUserId(authentication.principal)
-        val ledger = ledgerService.getLedgerWithPages(ledgerName) ?: return ResponseEntity.notFound().build()
+        val ledger = ledgerService.getLedger(ledgerName) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(ledger.toLedgerDTO(userId))
     }
 
@@ -98,27 +97,26 @@ class LedgerController(
         return EntryDTO(
             id = id,
             timestamp = timestamp,
-            content = if (isParticipant) content.toString(Charsets.UTF_8) else "Not available for user",
+            content = if (isParticipant) content else "Not available for user",
             senders = senders.map { resolveParticipant(it) },
             recipients = recipients.map { resolveParticipant(it) },
             signatures = signatures.map {
                 SignatureDTO(
                     participant = resolveName(it.signerId),
                     email = it.signerId,
-                    publicKey = it.publicKey.toHex(),
-                    signature = it.signature.toHex()
+                    publicKey = it.publicKey,
+                    signature = it.signature
                 )
             },
             relatedEntryIds = relatedEntries,
             keywords = keywords,
             ledgerName = ledgerName,
             pageNumber = pageNum,
-            hash = computeHash { ledgerService.getHasher().hash(it) }.toHex()
+            hash = hash
         )
     }
 
     private fun resolveParticipant(id: String): ParticipantDTO {
-        // Placeholder: replace with user service lookup if needed
         return ParticipantDTO(
             fullName = resolveName(id),
             email = id
@@ -126,10 +124,16 @@ class LedgerController(
     }
 
     private fun resolveName(id: String): String {
-        return if (id.lowercase().contains("system")) id else "User $id"
+        // TODO Send fullName not id
+        return id
     }
 
     private fun Ledger.toLedgerDTO(userId: String): LedgerDTO {
+
+        println("Ledger.toLedgerDTO")
+        println(this)
+        println("Holding entries (${holdingArea.count()}): $holdingArea")
+
         val dto = LedgerDTO(
             name = config.name,
             entriesPerPage = config.entriesPerPage,
@@ -138,9 +142,6 @@ class LedgerController(
             holdingEntries = holdingArea.map { it.toPageEntryDTO(userId) },
             pages = pages.map { it.toPageSummary().toDTO() }
         )
-        println("Here in the ledgerDTO")
-        println("The ledger is: \n$this")
-        println("The dto is: \n$dto")
         return dto
     }
 
@@ -164,14 +165,10 @@ class LedgerController(
             this.ledgerName,
             this.number,
             this.timestamp,
-            this.previousHash?.toHex(),
+            this.previousHash,
             this.entries.count(),
-            this.computeHash { ledgerService.getHasher().hash(it) }.toHex(),
+            this.hash,
             this.entries.map { it.toPageEntryDTO(userId) }
         )
-    }
-
-    private fun ByteArray.toHex(): String {
-        return joinToString("") { "%02x".format(it) }
     }
 }

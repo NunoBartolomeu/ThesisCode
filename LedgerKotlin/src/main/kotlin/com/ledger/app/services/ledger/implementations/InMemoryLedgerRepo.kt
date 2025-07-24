@@ -46,15 +46,19 @@ class InMemoryLedgerRepo : LedgerRepo {
     }
 
     override fun saveEntry(entry: Entry): Boolean {
-        // store in flat map
         entriesById[entry.id] = entry
-        // index in ledger list
+
         val list = entriesByLedger.computeIfAbsent(entry.ledgerName) { CopyOnWriteArrayList() }
-        if (!list.any { it.id == entry.id }) {
-            list.add(entry)
-            return true
+
+        val existingIndex = list.indexOfFirst { it.id == entry.id }
+
+        return if (existingIndex >= 0) {
+            list[existingIndex] = entry  // update
+            true // already existed
+        } else {
+            list.add(entry) // insert
+            true // newly added
         }
-        return false
     }
 
     override fun getEntry(entryId: String): Entry? {

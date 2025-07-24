@@ -23,14 +23,14 @@ class RSACryptoProvider(private val keySize: Int = 2048) : CryptoProvider {
         private const val SIGNATURE_ALGORITHM = "SHA256withRSA"
     }
 
-    override fun encrypt(data: ByteArray, publicKey: PublicKey): EncryptedPayload {
+    override fun encrypt(data: String, publicKey: PublicKey): EncryptedPayload {
         val aesKey = KeyGenerator.getInstance(AES_ALGORITHM).apply { init(AES_KEY_SIZE) }.generateKey()
         val iv = ByteArray(AES_IV_SIZE).also { SecureRandom().nextBytes(it) }
 
         val aesCipher = Cipher.getInstance(AES_TRANSFORMATION).apply {
             init(Cipher.ENCRYPT_MODE, aesKey, IvParameterSpec(iv))
         }
-        val cipherText = aesCipher.doFinal(data)
+        val cipherText = aesCipher.doFinal(dataToByteArray(data))
 
         val rsaCipher = Cipher.getInstance(RSA_TRANSFORMATION).apply {
             init(Cipher.ENCRYPT_MODE, publicKey)
@@ -53,17 +53,17 @@ class RSACryptoProvider(private val keySize: Int = 2048) : CryptoProvider {
         return aesCipher.doFinal(encryptedPayload.cipherText)
     }
 
-    override fun sign(data: ByteArray, privateKey: PrivateKey): ByteArray {
+    override fun sign(data: String, privateKey: PrivateKey): ByteArray {
         val signature = Signature.getInstance(SIGNATURE_ALGORITHM)
         signature.initSign(privateKey)
-        signature.update(data)
+        signature.update(dataToByteArray(data))
         return signature.sign()
     }
 
-    override fun verify(data: ByteArray, signatureBytes: ByteArray, publicKey: PublicKey): Boolean {
+    override fun verify(data: String, signatureBytes: ByteArray, publicKey: PublicKey): Boolean {
         val signature = Signature.getInstance(SIGNATURE_ALGORITHM)
         signature.initVerify(publicKey)
-        signature.update(data)
+        signature.update(dataToByteArray(data))
         return signature.verify(signatureBytes)
     }
 
@@ -73,13 +73,13 @@ class RSACryptoProvider(private val keySize: Int = 2048) : CryptoProvider {
         }.generateKeyPair()
     }
 
-    override fun bytesToPublicKey(data: ByteArray): PublicKey {
-        val spec = X509EncodedKeySpec(data)
+    override fun bytesToPublicKey(encodedPublicKey: ByteArray): PublicKey {
+        val spec = X509EncodedKeySpec(encodedPublicKey)
         return KeyFactory.getInstance(RSA_ALGORITHM).generatePublic(spec)
     }
 
-    override fun bytesToPrivateKey(data: ByteArray): PrivateKey {
-        val spec = PKCS8EncodedKeySpec(data)
+    override fun bytesToPrivateKey(encodedPrivateKey: ByteArray): PrivateKey {
+        val spec = PKCS8EncodedKeySpec(encodedPrivateKey)
         return KeyFactory.getInstance(RSA_ALGORITHM).generatePrivate(spec)
     }
 }

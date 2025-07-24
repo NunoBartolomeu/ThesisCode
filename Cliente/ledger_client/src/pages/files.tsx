@@ -3,7 +3,7 @@ import '../app/globals.css'
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Layout } from '@/components/Layout';
-import { FilesViewModel } from '@/viewmodels/FileViewModel';
+import { FilesService } from '@/viewmodels/FilesService';
 import { FileListItem } from '@/types/files';
 
 export default function FilesPage() {
@@ -13,7 +13,7 @@ export default function FilesPage() {
   const [isLoadingFiles, setIsLoadingFiles] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const filesViewModel = new FilesViewModel();
+  const filesService = new FilesService();
 
   useEffect(() => {
     loadFiles();
@@ -23,15 +23,24 @@ export default function FilesPage() {
     try {
       setIsLoadingFiles(true);
       setError(null);
-      const fileList = await filesViewModel.listFiles();
-      setFiles(fileList);
+
+      const response = await filesService.listFiles();
+
+      if (response.success && response.data) {
+        setFiles(response.data); // ✅ Only pass FileListItem[]
+      } else {
+        setFiles([]); // fallback on failure
+      }
+
     } catch (error) {
       console.error('Error loading files:', error);
       setError(error instanceof Error ? error.message : 'Failed to load files');
+      setFiles([]); // fallback on error
     } finally {
       setIsLoadingFiles(false);
     }
   };
+
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -66,7 +75,7 @@ export default function FilesPage() {
     setError(null);
     
     try {
-      await filesViewModel.uploadFile(file);
+      await filesService.uploadFile(file);
       // Reload files after successful upload
       await loadFiles();
     } catch (error) {
@@ -83,7 +92,7 @@ export default function FilesPage() {
     }
 
     try {
-      await filesViewModel.deleteFile(fileName);
+      await filesService.deleteFile(fileName);
       // Reload files after successful deletion
       await loadFiles();
     } catch (error) {

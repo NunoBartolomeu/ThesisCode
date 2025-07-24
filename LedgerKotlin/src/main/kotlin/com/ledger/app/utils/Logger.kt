@@ -18,11 +18,11 @@ data class RGB(val r: Int, val g: Int, val b: Int) {
 
         val GREEN_LIME = RGB(50, 205, 50)
         val GREEN_NEON = RGB(57, 255, 20)
-        val GREEN_DARK = RGB(50, 136, 50)
+        val GREEN_DARK = RGB(80, 156, 80)
 
         val BLUE_ELECTRIC = RGB(0, 120, 255)
         val BLUE_SKY = RGB(135, 206, 235)
-        val BLUE_DARK = RGB(50, 50, 139)
+        val BLUE_DARK = RGB(80, 80, 156)
 
         val YELLOW_BRIGHT = RGB(255, 255, 0)
         val YELLOW_GOLD = RGB(255, 215, 0)

@@ -25,6 +25,8 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.security.KeyPair
 import java.security.Security
+import java.security.cert.CertificateExpiredException
+import java.security.cert.CertificateNotYetValidException
 import java.security.cert.X509Certificate
 import java.time.LocalDateTime
 import java.util.Date
@@ -32,15 +34,11 @@ import java.util.Date
 @Service
 class SysKeyPairServiceLocal(
     @Value("\${system.key.path:./config/system_private_key.pem}") private val keyPathStr: String,
-    private val hashProvider: HashProvider,
     private val cryptoProvider: CryptoProvider,
 ): SysKeyPairService {
-    private val KP_SYSTEM = "sys_key_pair_service"
-    private val KP_LEDGER = "sys_key_pair_ledger"
     private val logger = ColorLogger("SystemKeyPair", RGB.ORANGE_BRIGHT, LogLevel.DEBUG)
     private var keyPair: KeyPair
     private var certificate: X509Certificate
-
     override fun getKeyPair(): KeyPair = keyPair
     private val keyPath = Paths.get(keyPathStr)
     private val certPath = keyPath.parent.resolve("system_certificate.crt")
@@ -56,44 +54,59 @@ class SysKeyPairServiceLocal(
     }
 
     private fun initializeKeyPairAndCert(): Pair<KeyPair, X509Certificate> {
-        val keyExists = Files.exists(keyPath)
-        val certExists = Files.exists(certPath)
-
-        val status =
-            if (keyExists && certExists) {
-                try {
-                    val cert = loadCertificate()
-                    val key = loadPrivateKey()
-                    if (validateCertificate(cert, key)) {
-                        logger.info("Key loaded successfully")
-                        return key to cert
-                    } else {
-                        logger.warn("Failed validation")
-                        "failed validation"
-                    }
-                } catch (e: Exception) {
-                    logger.warn("Failed loading")
-                    "failed load"
+        if (Files.exists(keyPath) && Files.exists(certPath)) {
+            try {
+                val cert = loadCertificate()
+                val key = loadPrivateKey()
+                if (testKeyAndCertificate(cert, key)) {
+                    logger.debug("Key and certificate are valid")
+                    return key to cert
                 }
-            } else {
-                logger.warn("Files are missing")
-                "missing files"
+            } catch (e: Exception) {
+                logger.warn("Failed to load key/cert: ${e.message}")
             }
-
+        } else {
+            logger.warn("Key or certificate file missing")
+        }
         moveToOld()
         val newKeyPair = createKeyPair()
         savePrivateKey(newKeyPair)
         val newCert = createCertificate(newKeyPair)
         saveCertificate(newCert)
+        if (testKeyAndCertificate(newCert, newKeyPair)) {
+            logger.info("New system key pair and certificate created")
+            return newKeyPair to newCert
+        } else {
+            throw Exception("There is a problem generating valid keys or certificates")
+        }
+    }
 
-        when(status) {
-            "failed validation" -> logger.info("Previous certificate or key failed validation")
-            "failed load" -> logger.info("Failed to load previous system key or certificate")
-            "missing files" -> logger.info("Some files were missing, moving existing to old")
+    fun testKeyAndCertificate(certificate: X509Certificate, keyPair: KeyPair): Boolean {
+        try {
+            certificate.checkValidity()
+        } catch (e: CertificateExpiredException) {
+            logger.warn("Certificate is expired")
+            return false
+        } catch (e: CertificateNotYetValidException) {
+            logger.warn("Certificate is not yet valid")
+            return false
         }
 
-        logger.info("New system key pair and certificate created")
-        return newKeyPair to newCert
+        try {
+            certificate.verify(certificate.publicKey)
+        } catch (e: Exception) {
+            logger.warn("Certificate is not self signed")
+            return false
+        }
+
+        val test = "test"
+        val signature = cryptoProvider.sign(test, keyPair.private)
+        if (!cryptoProvider.verify(test, signature, certificate.publicKey)) {
+            logger.warn("Certificate and key do not match")
+            return false
+        }
+
+        return true
     }
 
     private fun createKeyPair(): KeyPair = cryptoProvider.generateKeyPair()
@@ -151,29 +164,6 @@ class SysKeyPairServiceLocal(
                  return JcaX509CertificateConverter().setProvider("BC").getCertificate(holder)
              }
          }
-     }
-
-     private fun validateCertificate(cert: X509Certificate, keyPair: KeyPair): Boolean {
-         return checkDate(cert) && checkSelfSigned(cert) && checkMatchesPrivateKey(cert, keyPair)
-     }
-
-     private fun checkDate(cert: X509Certificate): Boolean = try {
-         cert.checkValidity()
-         true
-     } catch (e: Exception) {
-         false
-     }
-     private fun checkSelfSigned(cert: X509Certificate): Boolean = try {
-         cert.verify(cert.publicKey)
-         true
-     } catch (e: Exception) {
-         false
-     }
-
-     private fun checkMatchesPrivateKey(cert: X509Certificate, keyPair: KeyPair): Boolean {
-         val test = "test".toByteArray()
-         val signature = cryptoProvider.sign(test, keyPair.private)
-         return cryptoProvider.verify(test, signature, cert.publicKey)
      }
 
     private fun moveToOld() {

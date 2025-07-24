@@ -1,114 +1,50 @@
-package com.ledger.app
+import com.ledger.app.utils.implementations.ECCryptoProvider
+import com.ledger.app.utils.implementations.RSACryptoProvider
+import com.ledger.app.utils.implementations.SHA256HashProvider
 
-import jakarta.mail.*
-import jakarta.mail.internet.InternetAddress
-import jakarta.mail.internet.MimeMessage
-import java.util.*
-import kotlin.random.Random
-
-/**
- * Simple email sender component for 2FA verification
- */
-class EmailSender(
-    private val username: String,
-    private val password: String,
-    private val host: String = "smtp.gmail.com",
-    private val port: String = "587"
-) {
-    private val props = Properties().apply {
-        put("mail.smtp.auth", "true")
-        put("mail.smtp.starttls.enable", "true")
-        put("mail.smtp.host", host)
-        put("mail.smtp.port", port)
-    }
-
-    /**
-     * Generate a random 6-digit code for 2FA
-     */
-    fun generateVerificationCode(): String {
-        return String.format("%06d", Random.nextInt(1000000))
-    }
-
-    /**
-     * Send a verification code to the specified email address
-     * @param toEmail recipient's email address
-     * @param code verification code to send
-     * @return true if the email was sent successfully, false otherwise
-     */
-    fun sendVerificationCode(toEmail: String, code: String): Boolean {
-        return try {
-            val session = Session.getInstance(props, object : Authenticator() {
-                override fun getPasswordAuthentication(): PasswordAuthentication {
-                    return PasswordAuthentication(username, password)
-                }
-            }).apply {
-                debug = true
-            }
-
-            val message = MimeMessage(session).apply {
-                setFrom(InternetAddress(username))
-                setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail))
-                subject = "Your Verification Code"
-                setText("Your verification code is: $code\n\nThis code will expire in 10 minutes.")
-            }
-
-            Transport.send(message)
-
-            true
-        } catch (e: MessagingException) {
-            println("Failed to send email: ${e.message}")
-            e.printStackTrace()
-            false
-        }
-    }
-}
-
-//email: ledgerkotlin@gmail.com
-//email-password: SuperSecrect2FA
-//app-password: vnxw swdo pbcn grov
-
-/**
- * Main application for testing the com.ledger.app.EmailSender component
- */
 fun main() {
-    val scanner = Scanner(System.`in`)
+    val text = "This is a test"
+    val hashProvider = SHA256HashProvider()
+    val hash = hashProvider.hash(text)
+    val hashedText = hashProvider.toHashString(hash)
+    val expectedHash = "c7be1ed902fb8dd4d48997c6452f5d7e509fbcdbe2808b16bcf4edce4c07d14e"
+    println("text: $text")
+    println("hashedText: $hashedText")
+    println("is correct? ${hashedText == expectedHash}")
 
-    // Get sender email credentials
-    println("== Email 2FA Test com.ledger.app.Application ==")
-    println("\nNOTE: For Gmail, you need to use an App Password.")
-    println("You can create one at: https://myaccount.google.com/apppasswords")
+    println()
 
-    print("\nEnter sender email address: ")
-    val senderEmail = "ledgerkotlin@gmail.com"//scanner.nextLine()
+    val rsa = RSACryptoProvider()
+    val kp_rsa = rsa.generateKeyPair()
 
-    print("Enter email password or app password: ")
-    val password = "vnxw swdo pbcn grov"//scanner.nextLine()
+    val signature = rsa.sign(text, kp_rsa.private)
+    val verified = rsa.verify(text, signature, kp_rsa.public)
+    println("RSA verified: $verified")
+    val signature2 = rsa.sign(text, kp_rsa.private.encoded)
+    val verified2 = rsa.verify(text, signature2, kp_rsa.public.encoded)
+    println("RSA verified encoded: $verified2")
+    val signature3 = rsa.sign(text, rsa.keyOrSigToString(kp_rsa.private.encoded))
+    val verified3 = rsa.verify(text, rsa.keyOrSigToString(signature3), rsa.keyOrSigToString(kp_rsa.public.encoded))
+    println("RSA verified string: $verified3")
 
-    // Create email sender
-    val emailSender = EmailSender(senderEmail, password)
+    println()
 
-    // Get recipient email
-    print("\nEnter recipient email address: ")
-    val recipientEmail = scanner.nextLine()
+    val ec = ECCryptoProvider()
+    val ecKeyPair = ec.generateKeyPair()
 
-    // Generate and send verification code
-    val verificationCode = emailSender.generateVerificationCode()
-    println("\nSending verification code to $recipientEmail...")
+    val ecSignature1 = ec.sign(text, ecKeyPair.private)
+    val ecVerified1 = ec.verify(text, ecSignature1, ecKeyPair.public)
+    println("EC verified: $ecVerified1")
 
-    val success = emailSender.sendVerificationCode(recipientEmail, verificationCode)
-    if (success) {
-        println("Verification code sent successfully!")
+    val ecSignature2 = ec.sign(text, ecKeyPair.private.encoded)
+    val ecVerified2 = ec.verify(text, ecSignature2, ecKeyPair.public.encoded)
+    println("EC verified encoded: $ecVerified2")
 
-        // Verify the code
-        print("\nEnter the verification code you received: ")
-        val enteredCode = scanner.nextLine()
-
-        if (enteredCode == verificationCode) {
-            println("\n✅ Verification successful!")
-        } else {
-            println("\n❌ Verification failed. Incorrect code.")
-        }
-    } else {
-        println("Failed to send verification code. Please check your credentials and try again.")
-    }
+    val ecSignature3 = ec.sign(text, ec.keyOrSigToString(ecKeyPair.private.encoded))
+    val ecVerified3 = ec.verify(
+        text,
+        ec.keyOrSigToString(ecSignature3),
+        ec.keyOrSigToString(ecKeyPair.public.encoded)
+    )
+    println("EC verified string: $ecVerified3")
 }

@@ -1,5 +1,3 @@
-// types/files.ts
-
 export interface FileItem {
   id: string;
   name: string;
@@ -11,35 +9,6 @@ export interface FileItem {
   isShared: boolean;
 }
 
-// DTOs for API communication
-export interface UploadFileResponse {
-  message: string;
-  fileName: string;
-  size: number;
-}
-
-export interface ListFilesResponse {
-  files: {
-    name: string;
-    size: number;
-    lastModified: number;
-  }[];
-}
-
-export interface DeleteFileResponse {
-  message: string;
-}
-
-export interface ApiErrorResponse {
-  error: string;
-}
-
-// Request types
-export interface FileUploadRequest {
-  file: File;
-}
-
-// View model types
 export interface FileListItem {
   name: string;
   size: number;
@@ -61,13 +30,3 @@ export interface FileDetailsData {
   downloadUrl: string;
 }
 
-export interface FileDetailsDto {
-  originalFileName: string;
-  actualFileName: string;
-  fileSize: number;
-  contentType?: string;
-  uploadedAt: number;
-  lastAccessed?: number | null;
-  ownerFullName?: string;
-  ownerEmail?: string;
-}

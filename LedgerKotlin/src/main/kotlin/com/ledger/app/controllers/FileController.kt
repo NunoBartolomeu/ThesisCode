@@ -1,6 +1,8 @@
 package com.ledger.app.controllers
 
 import com.ledger.app.dtos.FileDetailsDto
+import com.ledger.app.dtos.FileInfoDTO
+import com.ledger.app.dtos.FileListResponse
 import com.ledger.app.services.files.FilesService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
@@ -24,7 +26,7 @@ class FileController(private val filesService: FilesService) {
     fun uploadFile(
         @RequestParam("file") file: MultipartFile,
         authentication: Authentication
-    ): ResponseEntity<Map<String, Any>> {
+    ): ResponseEntity<Void> {
         return try {
             val user = authentication.principal
             val userId = getUserId(user)
@@ -32,24 +34,15 @@ class FileController(private val filesService: FilesService) {
             logger.info("Uploading file ${file.originalFilename} for user $userId")
 
             if (file.isEmpty) {
-                return ResponseEntity.badRequest()
-                    .body(mapOf("error" to "File is empty"))
+                return ResponseEntity.badRequest().build()
             }
 
-            val savedFile = filesService.saveFile(userId, file)
-
-            logger.info("File uploaded successfully: ${savedFile.name}")
-            ResponseEntity.ok(
-                mapOf(
-                    "message" to "File uploaded successfully",
-                    "fileName" to savedFile.name,
-                    "size" to savedFile.length()
-                )
-            )
+            filesService.saveFile(userId, file)
+            logger.info("File uploaded successfully")
+            ResponseEntity.ok().build()
         } catch (e: Exception) {
             logger.error("Error uploading file: ${e.message}")
-            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(mapOf("error" to "Failed to upload file: ${e.message}"))
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
         }
     }
 
@@ -84,7 +77,7 @@ class FileController(private val filesService: FilesService) {
     }
 
     @GetMapping("/list")
-    fun listUserFiles(authentication: Authentication): ResponseEntity<Map<String, Any>> {
+    fun listUserFiles(authentication: Authentication): ResponseEntity<FileListResponse> {
         return try {
             val user = authentication.principal
             val userId = getUserId(user)
@@ -93,23 +86,21 @@ class FileController(private val filesService: FilesService) {
 
             val files = filesService.listUserFiles(userId)
 
-            ResponseEntity.ok(
-                mapOf(
-                    "files" to files.map { file ->
-                        mapOf(
-                            "name" to file.name,
-                            "size" to file.length(),
-                            "lastModified" to file.lastModified()
-                        )
-                    }
+            val fileDTOs = files.map {
+                FileInfoDTO(
+                    name = it.name,
+                    size = it.length(),
+                    lastModified = it.lastModified()
                 )
-            )
+            }
+
+            ResponseEntity.ok(FileListResponse(fileDTOs))
         } catch (e: Exception) {
             logger.error("Error listing files: ${e.message}")
-            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(mapOf("error" to "Failed to list files: ${e.message}"))
+            ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
         }
     }
+
 
     @GetMapping("/details/{fileName}")
     fun getFileDetails(

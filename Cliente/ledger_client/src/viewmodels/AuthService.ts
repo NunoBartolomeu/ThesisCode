@@ -1,15 +1,7 @@
 import { Fetcher, ApiResponse } from '@/viewmodels/Fetcher';
 import { StorageService } from './StorageService';
-import {
-  RegisterRequest,
-  LoginRequest,
-  VerifyCodeRequest,
-  ValidateTokenRequest,
-  SimpleAuthResult,
-  AuthenticatedUser,
-  User,
-  Token,
-} from '@/types/auth';
+import { User, Token} from '@/types/auth';
+import { RegisterRequest, LoginRequest, VerifyCodeRequest, ValidateTokenRequest, SimpleAuthResult, AccessTokenResult } from '@/dto/auth_dto';
 
 export class AuthService {
   private fetcher: Fetcher;
@@ -18,11 +10,12 @@ export class AuthService {
     this.fetcher = new Fetcher(baseUrl);
   }
 
-  private async hashPassword(password: string): Promise<number[]> {
+  private async hashPassword(password: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(password);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(hashBuffer));
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   private isValidEmail(email: string): boolean {
@@ -117,7 +110,7 @@ export class AuthService {
     return response;
   }
 
-  async verify2FA(code: string): Promise<ApiResponse<AuthenticatedUser>> {
+  async verify2FA(code: string): Promise<ApiResponse<AccessTokenResult>> {
     const user = StorageService.getUser();
     
     if (!user) {
@@ -139,7 +132,7 @@ export class AuthService {
 
     const request: VerifyCodeRequest = { email: user.email, code };
 
-    const response = await this.fetcher.request<AuthenticatedUser>('/auth/verify', {
+    const response = await this.fetcher.request<AccessTokenResult>('/auth/verify', {
       method: 'POST',
       body: request,
     });
@@ -161,23 +154,14 @@ export class AuthService {
 
     const request: ValidateTokenRequest = { token: tokenToValidate };
 
-    const response = await this.fetcher.request<AuthenticatedUser>('/auth/validate', {
+    const response = await this.fetcher.request<Boolean>('/auth/validate', {
       method: 'POST',
       body: request,
       requireAuth: true,
     });
 
     if (response.success && response.data) {
-      const token: Token = {
-        accessToken: response.data.accessToken,
-        expiresAt: new Date(response.data.expiresAt * 1000),
-      };
-      StorageService.saveToken(token);
-      StorageService.saveUser({
-        email: response.data.email,
-        fullName: response.data.fullName,
-      });
-      return true;
+      return response.data.valueOf();
     }
 
     return false;

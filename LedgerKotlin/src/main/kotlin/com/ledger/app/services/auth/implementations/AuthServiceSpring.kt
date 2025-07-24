@@ -1,10 +1,10 @@
 package com.ledger.app.services.auth.implementations
 
-import com.ledger.app.models.AuthenticatedUser
-import com.ledger.app.models.SimpleAuthResult
+import com.ledger.app.models.Token
 import com.ledger.app.models.User
 import com.ledger.app.services.auth.AuthRepo
 import com.ledger.app.services.auth.AuthService
+import com.ledger.app.services.files.FilesService
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.services.two_fa.TwoFAService
 import com.ledger.app.utils.ColorLogger
@@ -15,6 +15,7 @@ import com.ledger.app.utils.RGB
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import io.jsonwebtoken.security.Keys
+import org.springframework.context.annotation.Lazy
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
@@ -29,6 +30,7 @@ class AuthServiceSpring(
     cryptoProvider: CryptoProvider,
     private val repo: AuthRepo,
     private val ledgerService: LedgerService,
+    @Lazy private val filesService: FilesService,
     private val twoFAService: TwoFAService,
     private val passwordEncoder: PasswordEncoder,
 ) : AuthService {
@@ -108,12 +110,12 @@ class AuthServiceSpring(
 
     private fun generateId(): String = UUID.randomUUID().toString()
 
-    override fun registerUser(email: String, passwordHash: ByteArray, fullName: String): SimpleAuthResult {
+    override fun registerUser(email: String, passwordHash: String, fullName: String): User {
         if (repo.getUserByEmail(email) != null) {
             logger.error("Email $email is already registered to a user")
             throw IllegalArgumentException("Email already in use")
         }
-        val encodedPassword = passwordEncoder.encode(String(passwordHash))
+        val encodedPassword = passwordEncoder.encode(passwordHash)
         val user = User(id = generateId(), email = email, hashedPassword = encodedPassword, fullName = fullName, emailVerified = false)
 
         if (!repo.saveUser(user)) {
@@ -125,10 +127,13 @@ class AuthServiceSpring(
 
         logger.info("Registered user ${user.fullName}, needing verification")
         ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SYSTEM, user.id, "Registered new user ${user.id}, needs verification")
-        return SimpleAuthResult(email, fullName,true)
+
+        filesService.initiateLedgerForUser(user.id)
+
+        return user
     }
 
-    override fun loginUser(email: String, passwordHash: ByteArray): SimpleAuthResult {
+    override fun loginUser(email: String, passwordHash: String): User {
         val user = repo.getUserByEmail(email)
 
         if (user == null) {
@@ -136,7 +141,7 @@ class AuthServiceSpring(
             throw IllegalArgumentException("Invalid credentials")
         }
 
-        if (!passwordEncoder.matches(String(passwordHash), user.hashedPassword)) {
+        if (!passwordEncoder.matches(passwordHash, user.hashedPassword)) {
             logger.error("Password authentication failed for $email")
             throw IllegalArgumentException("Invalid credentials")
         }
@@ -145,10 +150,10 @@ class AuthServiceSpring(
 
         logger.info("Authenticated user ${user.fullName}")
         ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SYSTEM, user.id, "Authenticated user ${user.fullName}")
-        return SimpleAuthResult(email, user.fullName,true)
+        return user
     }
 
-    override fun verifyCodeAndGetToken(email: String, code: String): AuthenticatedUser {
+    override fun verifyCodeAndGetToken(email: String, code: String): Token {
         if (!twoFAService.verifyCode(email, code)) {
             logger.error("Invalid or expired verification code for $email")
             throw IllegalArgumentException("Invalid or expired verification code for $email")
@@ -169,43 +174,35 @@ class AuthServiceSpring(
         logger.info("User ${user.fullName} authenticated successfully")
         ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SYSTEM, user.id, "User ${user.fullName} authenticated successfully")
 
-        return AuthenticatedUser(
-            email = email,
-            fullName = user.fullName,
+        return Token(
             accessToken = accessToken,
             expiresAt = expiresAt
         )
     }
 
-    override fun validateToken(token: String): AuthenticatedUser? {
-        val email = activeTokens[token] ?: return null
+    override fun validateToken(token: String): Boolean {
+        val email = activeTokens[token] ?: return false
 
         val tokenEmail = jwtUtil.validateAndGetSubject(token)
         if (tokenEmail != email) {
             activeTokens.remove(token)
-            return null
+            return false
         }
 
-        val user = repo.getUserByEmail(email)?: return null
+        val user = repo.getUserByEmail(email)?: return false
         logger.debug("Token validated for ${user.fullName}")
 
-        return AuthenticatedUser(
-            email = email,
-            fullName = user.fullName,
-            accessToken = token,
-            expiresAt = jwtUtil.getExpirationTime(token)
-        )
+        return true
     }
 
     override fun getUserInfo(userId: String): User? {
         return repo.getUser(userId)
     }
 
-    override fun logoutUser(token: String) {
-        val email = activeTokens.remove(token)
-        if (email != null) {
-            logger.info("User logged out: $email")
+    override fun logoutUser(userId: String) {
+        val user = repo.getUser(userId)
+        if (user?.email != null) {
+            logger.info("User logged out: ${user.email}")
         }
     }
-
 }

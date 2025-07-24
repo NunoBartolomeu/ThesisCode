@@ -1,11 +1,7 @@
+import { FileDetailsDto, FileListResponse, FileInfoDTO, DeleteFileResponse, FileUploadRequest } from "@/dto/files_dto";
 import { Fetcher, ApiResponse } from "./Fetcher";
-import {
-  FileListItem,
-  FileDetailsData,
-  FileDetailsDto,
-  UploadFileResponse,
-  ListFilesResponse,
-} from '@/types/files';
+import { FileListItem, FileDetailsData} from '@/types/files';
+
 
 export class FilesService {
   private fetcher: Fetcher;
@@ -14,11 +10,11 @@ export class FilesService {
     this.fetcher = new Fetcher(baseUrl);
   }
 
-  async uploadFile(file: File): Promise<ApiResponse<UploadFileResponse>> {
+  async uploadFile(file: File): Promise<ApiResponse<void>> {
     const formData = new FormData();
     formData.append('file', file);
 
-    return this.fetcher.request<UploadFileResponse>('/file/upload', {
+    return this.fetcher.request<void>('/file/upload', {
       method: 'POST',
       body: formData,
       requireAuth: true,
@@ -27,7 +23,7 @@ export class FilesService {
   }
 
   async listFiles(): Promise<ApiResponse<FileListItem[]>> {
-    const response = await this.fetcher.request<ListFilesResponse>('/file/list', {
+    const response = await this.fetcher.request<FileListResponse>('/file/list', {
       method: 'GET',
       requireAuth: true,
     });

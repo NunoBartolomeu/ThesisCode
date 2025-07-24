@@ -1,8 +1,6 @@
 package com.ledger.app.controllers
 
 import com.ledger.app.dtos.*
-import com.ledger.app.models.AuthenticatedUser
-import com.ledger.app.models.SimpleAuthResult
 import com.ledger.app.services.auth.AuthService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
@@ -23,13 +21,9 @@ class AuthController(private val authService: AuthService) {
     fun register(@RequestBody request: RegisterRequest): ResponseEntity<SimpleAuthResult> {
         logger.info("Register request for email: ${request.email}")
         return try {
-            val result = authService.registerUser(
-                request.email,
-                request.passwordHash,
-                request.fullName
-            )
+            val user = authService.registerUser(request.email, request.passwordHash, request.fullName)
             logger.info("Registration successful for: ${request.email}")
-            ResponseEntity.ok(result)
+            ResponseEntity.ok(SimpleAuthResult(user.email, user.fullName, true))
         } catch (e: IllegalArgumentException) {
             logger.warn("Registration failed: ${e.message}")
             ResponseEntity.badRequest().body(null)
@@ -40,9 +34,9 @@ class AuthController(private val authService: AuthService) {
     fun login(@RequestBody request: LoginRequest): ResponseEntity<SimpleAuthResult> {
         logger.info("Login request for email: ${request.email}")
         return try {
-            val result = authService.loginUser(request.email, request.passwordHash)
+            val user = authService.loginUser(request.email, request.passwordHash)
             logger.info("Login successful for: ${request.email}")
-            ResponseEntity.ok(result)
+            ResponseEntity.ok(SimpleAuthResult(user.email, user.fullName, true))
         } catch (e: IllegalArgumentException) {
             logger.warn("Login failed: ${e.message}")
             ResponseEntity.badRequest().body(null)
@@ -50,12 +44,12 @@ class AuthController(private val authService: AuthService) {
     }
 
     @PostMapping("/verify")
-    fun verifyCode(@RequestBody request: VerifyCodeRequest): ResponseEntity<AuthenticatedUser> {
+    fun verifyCode(@RequestBody request: VerifyCodeRequest): ResponseEntity<AccessTokenResult> {
         logger.info("Verification request for email: ${request.email}")
         return try {
-            val result = authService.verifyCodeAndGetToken(request.email, request.code)
+            val token = authService.verifyCodeAndGetToken(request.email, request.code)
             logger.info("Verification successful for: ${request.email}")
-            ResponseEntity.ok(result)
+            ResponseEntity.ok(AccessTokenResult(token.accessToken, token.expiresAt))
         } catch (e: IllegalArgumentException) {
             logger.warn("Verification failed: ${e.message}")
             ResponseEntity.badRequest().body(null)
@@ -63,15 +57,15 @@ class AuthController(private val authService: AuthService) {
     }
 
     @PostMapping("/validate")
-    fun validateToken(@RequestBody request: ValidateTokenRequest): ResponseEntity<AuthenticatedUser?> {
+    fun validateToken(@RequestBody request: ValidateTokenRequest): ResponseEntity<Boolean> {
         logger.debug("Token validation request")
-        val user = authService.validateToken(request.token)
-        return if (user != null) {
-            logger.debug("Token valid for: ${user.email}")
-            ResponseEntity.ok(user)
+        val valid = authService.validateToken(request.token)
+        return if (valid) {
+            logger.debug("Token is valid")
+            ResponseEntity.ok(true)
         } else {
             logger.warn("Invalid token provided")
-            ResponseEntity.ok(null)
+            ResponseEntity.ok(false)
         }
     }
 

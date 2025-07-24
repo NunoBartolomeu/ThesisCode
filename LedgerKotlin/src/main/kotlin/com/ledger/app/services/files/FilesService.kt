@@ -12,4 +12,5 @@ interface FilesService {
     fun deleteFile(userId: String, fileName: String): Boolean
     fun getUserDirectory(userId: String): File
     fun getFileDetails(userId: String, fileName: String): FileDetailsDto?
+    fun initiateLedgerForUser(userId: String)
 }

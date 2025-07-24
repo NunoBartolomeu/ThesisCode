@@ -2,6 +2,7 @@ package com.ledger.app.models.ledger
 
 import com.ledger.app.utils.CryptoProvider
 import com.ledger.app.utils.HashProvider
+import java.lang.IllegalStateException
 import java.util.*
 
 data class LedgerConfig(
@@ -34,17 +35,16 @@ class Ledger(
         keywords: List<String>
     ): Entry {
         require(senders.isNotEmpty())
-        val entry = Entry(
+        val builder = EntryBuilder(
+            hashFunction = { data -> hashProvider.toHashString(hashProvider.hash(data)) },
             id = UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
-            content = content.toByteArray(),
+            content = content,
             senders = senders,
             recipients = recipients,
-            signatures = mutableListOf(),
-            relatedEntries = relatedEntries.toMutableList(),
-            keywords = keywords.toMutableList(),
-            ledgerName = this.config.name
+            ledgerName = this.config.name,
         )
+        val entry = builder.build().copy(relatedEntries = relatedEntries, keywords = keywords)
         holdingArea.add(entry)
         entryMap[entry.id] = entry
         return entry
@@ -52,87 +52,54 @@ class Ledger(
 
     fun addSignature(entryId: String, sig: Entry.Signature): Boolean {
         val entry = entryMap[entryId] ?: return false
-        val entryHash = entry.computeHash(hashProvider::hash)
         if (!entry.senders.contains(sig.signerId)) return false
-        if (!cryptoProvider.verify(entryHash, sig.signature, sig.publicKey)) return false
-        if (entry.signatures.none { it.signerId == sig.signerId }) {
-            entry.signatures.add(sig)
-        }
-        if (verifyEntry(entry)) {
-            verifiedEntries.add(entry)
-            holdingArea.remove(entry)
+        val signatures = entry.signatures.toMutableList()
+        if (signatures.any { it.signerId == sig.signerId }) return true
+        if (!cryptoProvider.verify(entry.hash, sig.signature, sig.publicKey)) return false
+        signatures.add(sig)
+        holdingArea.remove(entry)
+
+        val newEntry = entry.copy(signatures = signatures)
+
+        println("New count: ${newEntry.signatures.count()}, old count: ${entry.signatures.count()}")
+
+        if (verifyEntry(newEntry)) {
+            verifiedEntries.add(newEntry)
+            println("Entries per page: ${config.entriesPerPage}, Verified entries: ${verifiedEntries.count()}, should create: ${verifiedEntries.count() == config.entriesPerPage}")
+            if (verifiedEntries.count() == config.entriesPerPage) {
+                createPage()
+            }
+        } else {
+            holdingArea.add(newEntry)
         }
         return true
     }
 
     fun verifyEntry(entry: Entry): Boolean {
-        return entry.isFullySigned() && entry.verifySignatures(cryptoProvider::verify, hashProvider::hash)
+        return entry.isFullySigned() && entry.verifySignatures(cryptoProvider::verify)
     }
 
     fun getInclusionProof(entry: Entry): List<ByteArray> {
-        if (entry.pageNum == null || entry.pageNum!! > pages.last().number)
+        if (entry.pageNum == null || entry.pageNum > pages.last().number)
             return emptyList()
-        val page = pages[entry.pageNum!!]
+        val page = pages[entry.pageNum]
         if (!page.entries.contains(entry))
             return emptyList()
-        return page.entries.map { it.computeHash(hashProvider::hash) }
+        return page.entries.map { hashProvider.toHashByteArray(it.hash) }
     }
 
-    fun createPage(): Page? {
-        if (verifiedEntries.size < config.entriesPerPage)
-            return null
+    fun createPage() {
+        if (verifiedEntries.size < config.entriesPerPage) throw IllegalStateException("Not enough entries to create a page")
         val toAdd = verifiedEntries.take(config.entriesPerPage).sortedBy { it.timestamp }
-        val merkleRoot = buildMerkleTree(toAdd.map { it.computeHash(hashProvider::hash) }).hash
-        val prevHash = pages.lastOrNull()?.computeHash(hashProvider::hash)
-        val page = Page(
+        val builder = PageBuilder(
+            hashFunction = { data -> hashProvider.toHashString(hashProvider.hash(data)) },
             ledgerName = this.config.name,
             number = pages.size,
-            previousHash = prevHash,
+            timestamp = System.currentTimeMillis(),
+            previousHash = pages.lastOrNull()?.hash ?: "",
             entries = toAdd,
-            merkleRoot = merkleRoot
         )
-        pages.add(page)
+        pages.add(builder.build())
         verifiedEntries.removeAll(toAdd)
-        return page
-    }
-
-    private fun buildMerkleTree(hashes: List<ByteArray>): Node {
-        if (hashes.isEmpty())
-            throw Error("Cannot build empty merkle tree")
-        val nodes = mutableListOf<Node>()
-        var height = 0
-        var layer = hashes
-        while (layer.size > 1) {
-            var index = 0
-            layer.forEach {
-                Node(
-                    it,
-                    height,
-                    index,
-                    nodes.find { it.height == height - 1 && it.index == index * 2 },
-                    nodes.find { it.height == height - 1 && it.index == index * 2 + 1 }
-                )
-                index++
-            }
-            layer = layer.chunked(2).map {
-                if (it.size == 1)
-                    hashProvider.hash(it[0] + it[0])
-                else
-                    hashProvider.hash(it[0] + it[1])
-            }
-            height++
-        }
-
-        nodes.add(
-            Node(
-                layer.first(),
-                height,
-                0,
-                nodes.find { it.height == height - 1 && it.index == 0 },
-                nodes.find { it.height == height - 1 && it.index == 1 }
-            )
-        )
-
-        return nodes.last()
     }
 }
