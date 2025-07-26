@@ -19,7 +19,7 @@ import java.lang.IllegalArgumentException
 
 @Service
 class LedgerServiceSpring (
-    private val ledgerRepo: LedgerRepo,
+    private val repo: LedgerRepo,
     private val hashProvider: HashProvider,
     private val cryptoProvider: CryptoProvider,
     private val sysKeyPairServiceLocal: SysKeyPairServiceLocal
@@ -28,10 +28,10 @@ class LedgerServiceSpring (
     private val activeLedgers = mutableMapOf<String, Ledger>()
 
     private fun loadLedger(ledgerName: String): Ledger? {
-        val config = ledgerRepo.getLedgerConfig(ledgerName) ?: return null
+        val config = repo.getLedgerConfig(ledgerName) ?: return null
         val ledger = Ledger(config, hashProvider, cryptoProvider)
 
-        val entries = ledgerRepo.getEntriesByLedger(ledgerName)
+        val entries = repo.getEntriesByLedger(ledgerName)
         for (entry in entries) {
             loadEntryIntoLedger(ledger, entry)
         }
@@ -41,17 +41,17 @@ class LedgerServiceSpring (
     }
 
     private fun saveEntry(entry: Entry): Boolean {
-        if (!ledgerRepo.saveEntry(entry)) {
+        if (!repo.saveEntry(entry)) {
             logger.warn("Repo did not save the entry")
             return false
         }
         val ledger = getLedger(entry.ledgerName)
-        ledger?.let { it.entryMap[entry.id] = entry }
+        ledger?.updateEntry(entry)
         return true
     }
 
     private fun savePage(page: Page): Boolean {
-        if (ledgerRepo.savePage(page)) {
+        if (repo.savePage(page)) {
             val ledger = getLedger(page.ledgerName)
             ledger?.let { it.pages[page.number] = page }
             return true
@@ -62,7 +62,7 @@ class LedgerServiceSpring (
     override fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String, cryptoAlgorithm: String) {
         val config = LedgerConfig(name, linesPerPage, hashAlgorithm, cryptoAlgorithm)
         val ledger = Ledger(config, hashProvider, cryptoProvider)
-        if (ledgerRepo.saveLedgerConfig(config)) {
+        if (repo.saveLedgerConfig(config)) {
             logger.info("Ledger ${ledger.config.name} was created")
             activeLedgers[name] = ledger
         } else {
@@ -71,57 +71,40 @@ class LedgerServiceSpring (
         }
     }
 
-    override fun createEntry(
-        ledgerName: String,
-        content: String,
-        senders: List<String>,
-        recipients: List<String>,
-        relatedEntries: List<String>,
-        keywords: List<String>
-    ): Entry? {
+    override fun createEntry(ledgerName: String, content: String, senders: List<String>, recipients: List<String>, relatedEntries: List<String>, keywords: List<String>): Entry? {
         val ledger = getLedger(ledgerName) ?: return logger.warn("Ledger $ledgerName not found").let { null }
         val entry = ledger.createEntry(content, senders, recipients, relatedEntries, keywords)
-        if (saveEntry(entry)) {
+        return if (saveEntry(entry)) {
             logger.info("Entry ${entry.id} was inserted in Ledger $ledgerName")
-            return entry
+            entry
         } else {
             logger.warn("Failed to save entry ${entry.id}")
-            return null
+            null
         }
     }
 
     @Transactional
     override fun signEntry(entryId: String, signerId: String, signature: String, publicKey: String, signingAlgorithm: String) {
-        val entry = ledgerRepo.getEntry(entryId)
-            ?: return logger.warn("Entry $entryId not found")
-
-        val ledger = getLedger(entry.ledgerName)
-            ?: return logger.warn("Ledger ${entry.ledgerName} not found")
+        val entry = repo.getEntry(entryId) ?: return logger.warn("Entry $entryId not found")
+        val ledger = getLedger(entry.ledgerName) ?: return logger.warn("Ledger ${entry.ledgerName} not found")
 
         val lastPageNumber = ledger.pages.lastOrNull()?.number ?: -100
         val sig = Entry.Signature(signerId, publicKey, signature, signingAlgorithm)
-
-        if (!ledger.addSignature(entryId, sig)) {
-            logger.warn("Failed to sign entry")
-            throw IllegalStateException("Failed to sign entry")
-        }
+        val signedEntry = ledger.addSignature(entryId, sig)
 
         val newLastPageNumber = ledger.pages.lastOrNull()?.number ?: -100
-        val pageCreated = if (lastPageNumber != newLastPageNumber) ledger.pages.last() else null
 
-        println("Last page number: $lastPageNumber, after entry: $lastPageNumber, page created: ${pageCreated != null}")
-
-        if (!saveEntry(entry)) {
-            logger.warn("Failed to save signed entry ${entry.id}")
+        if (!repo.saveEntry(signedEntry)) {
+            logger.warn("Failed to save signed entry ${entry.id} to repo")
             throw IllegalStateException("Failed to save entry")
         }
 
         logger.info("Signature was added to entry ${entry.id}")
-        if (pageCreated != null) {
-            if (savePage(pageCreated)) {
-                logger.info("Page ${pageCreated.number} was automatically created and saved")
+        if (lastPageNumber != newLastPageNumber) {
+            if (savePage(ledger.pages.last())) {
+                logger.info("Page ${ledger.pages.last().number} was automatically created and saved")
             } else {
-                logger.warn("Failed to save automatically created page ${pageCreated.number}")
+                logger.warn("Failed to save automatically created page ${ledger.pages.last().number}")
                 throw IllegalStateException("Failed to save page")
             }
         }
@@ -142,56 +125,52 @@ class LedgerServiceSpring (
 
 
     override fun addKeywords(entryId: String, keywords: List<String>) {
-        val entry = ledgerRepo.getEntry(entryId) ?: return
-        val ledger = getLedger(entry.ledgerName) ?: return
+        val entry = repo.getEntry(entryId) ?: return
+        getLedger(entry.ledgerName) ?: return
 
         val uniqueNewKeywords = keywords - entry.keywords.toSet()
         if (uniqueNewKeywords.isEmpty()) return
 
         val newEntry = entry.copy(keywords = entry.keywords + uniqueNewKeywords)
-        ledgerRepo.saveEntry(newEntry)
-        ledger.entryMap[entryId] = newEntry
+        saveEntry(newEntry)
     }
 
     override fun removeKeyword(entryId: String, keyword: String) {
-        val entry = ledgerRepo.getEntry(entryId) ?: return
-        val ledger = getLedger(entry.ledgerName) ?: return
+        val entry = repo.getEntry(entryId) ?: return
+        getLedger(entry.ledgerName) ?: return
 
         if (keyword !in entry.keywords) return
 
         val newEntry = entry.copy(keywords = entry.keywords - keyword)
-        ledgerRepo.saveEntry(newEntry)
-        ledger.entryMap[entryId] = newEntry
+        saveEntry(newEntry)
     }
 
     override fun addRelatedEntries(entryId: String, relatedEntries: List<String>) {
-        val entry = ledgerRepo.getEntry(entryId) ?: return
-        val ledger = getLedger(entry.ledgerName) ?: return
+        val entry = repo.getEntry(entryId) ?: return
+        getLedger(entry.ledgerName) ?: return
 
         val uniqueRelatedEntries = relatedEntries - entry.relatedEntries.toSet()
         if (uniqueRelatedEntries.isEmpty()) return
 
         val newEntry = entry.copy(relatedEntries = entry.relatedEntries + uniqueRelatedEntries)
-        ledgerRepo.saveEntry(newEntry)
-        ledger.entryMap[entryId] = newEntry
+        saveEntry(newEntry)
     }
 
     override fun removeRelatedEntry(entryId: String, relatedEntry: String) {
-        val entry = ledgerRepo.getEntry(entryId) ?: return
-        val ledger = getLedger(entry.ledgerName) ?: return
+        val entry = repo.getEntry(entryId) ?: return
+        getLedger(entry.ledgerName) ?: return
 
         if (relatedEntry !in entry.relatedEntries) return
 
         val newEntry = entry.copy(relatedEntries = entry.relatedEntries - relatedEntry)
-        ledgerRepo.saveEntry(newEntry)
-        ledger.entryMap[entryId] = newEntry
+        saveEntry(newEntry)
     }
 
 
 
     override fun getAvailableLedgers(): List<String> {
         logger.debug("Getting available ledgers")
-        return ledgerRepo.getAllLedgersNames()
+        return repo.getAllLedgersNames()
     }
 
     override fun getLedger(ledgerName: String): Ledger? {
@@ -205,14 +184,14 @@ class LedgerServiceSpring (
             } else {
                 ledger.holdingArea.add(entry)
             }
-        ledger.entryMap[entry.id] = entry
+        ledger.updateEntry(entry)
     }
 
 
 
 
     override fun validateChain(ledgerName: String): Boolean {
-        val pages = ledgerRepo.getAllPages(ledgerName)
+        val pages = repo.getAllPages(ledgerName)
         if (pages.isEmpty()) return true
 
         for (i in 1 until pages.size) {
@@ -236,7 +215,7 @@ class LedgerServiceSpring (
     }
 
     override fun getPageSummary(ledgerName: String, pageNumber: Int): PageSummary? {
-        val page = ledgerRepo.getPage(ledgerName, pageNumber) ?: return null
+        val page = repo.getPage(ledgerName, pageNumber) ?: return null
         return page.toPageSummary()
     }
 
@@ -244,16 +223,13 @@ class LedgerServiceSpring (
 
 
     override fun validatePage(ledgerName: String, pageNumber: Int): Boolean {
-        val page = ledgerRepo.getPage(ledgerName, pageNumber) ?: return false
+        val page = repo.getPage(ledgerName, pageNumber) ?: return false
 
-        // Verify merkle root
-        val ledger = getLedger(ledgerName) ?: return false
-        // Implementation would validate that the page's merkle root matches the computed root
-        // from the entries in the page
+        getLedger(ledgerName) ?: return false
 
         // Verify link to previous page
         if (pageNumber > 0) {
-            val prevPage = ledgerRepo.getPage(ledgerName, pageNumber - 1) ?: return false
+            val prevPage = repo.getPage(ledgerName, pageNumber - 1) ?: return false
             val prevHash = prevPage.hash
             if (!prevHash.contentEquals(page.previousHash)) {
                 return false
@@ -264,32 +240,32 @@ class LedgerServiceSpring (
     }
 
     override fun getEntry(entryId: String): Entry? {
-        return ledgerRepo.getEntry(entryId)
+        return repo.getEntry(entryId)
     }
 
     override fun getEntriesBySender(ledgerName: String, userId: String): List<Entry> {
         val ledger = getLedger(ledgerName) ?: throw IllegalArgumentException("No ledger with name $ledgerName")
-        return ledger.entryMap.values.filter { it.senders.contains(userId) }
+        val entryMap = ledger.holdingArea + ledger.verifiedEntries
+        return entryMap.filter { it.senders.contains(userId) }
     }
 
     override fun getEntriesByRecipient(ledgerName: String, userId: String): List<Entry> {
         val ledger = getLedger(ledgerName) ?: throw IllegalArgumentException("No ledger with name $ledgerName")
-        return ledger.entryMap.values.filter { it.recipients.contains(userId) }
+        val entryMap = ledger.holdingArea + ledger.verifiedEntries
+        return entryMap.filter { it.recipients.contains(userId) }
     }
 
     override fun getEntriesByKeyword(ledgerName: String, keyword: String): List<Entry> {
         val ledger = getLedger(ledgerName) ?: throw IllegalArgumentException("No ledger with name $ledgerName")
-        return ledger.entryMap.values.filter { it.keywords.contains(keyword) }
+        val entryMap = ledger.holdingArea + ledger.verifiedEntries
+        return entryMap.filter { it.keywords.contains(keyword) }
     }
 
     override fun getRelatedEntries(entryId: String): List<Entry> {
-        val entry = ledgerRepo.getEntry(entryId) ?: return emptyList()
+        val entry = repo.getEntry(entryId) ?: return emptyList()
         val ledger = getLedger(entry.ledgerName) ?: return emptyList()
-        return entry.relatedEntries.mapNotNull { relatedId -> ledger.entryMap[relatedId] }
+        return entry.relatedEntries.mapNotNull { relatedId -> ledger.getEntryById(relatedId) }
     }
-
-
-
 
     override fun getEntriesNeedingSignature(ledgerName: String, userId: String): List<Entry> {
         val ledger = getLedger(ledgerName) ?: throw IllegalArgumentException("No ledger with name $ledgerName")
@@ -297,7 +273,7 @@ class LedgerServiceSpring (
     }
 
     override fun getInclusionProof(entryId: String): List<ByteArray> {
-        val entry = ledgerRepo.getEntry(entryId) ?: return emptyList()
+        val entry = repo.getEntry(entryId) ?: return emptyList()
         val ledger = getLedger(entry.ledgerName) ?: return emptyList()
         return ledger.getInclusionProof(entry)
     }

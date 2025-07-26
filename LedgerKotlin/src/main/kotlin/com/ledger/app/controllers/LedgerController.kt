@@ -163,7 +163,8 @@ class LedgerController(
             entriesPerPage = config.entriesPerPage,
             hashAlgorithm = config.hashAlgorithm,
             cryptoAlgorithm = config.cryptoAlgorithm,
-            holdingEntries = holdingArea.map { it.toPageEntryDTO(userId) },
+            verifiedEntries = verifiedEntries.map {it.toPageEntryDTO(userId) },
+            nonVerifiedEntries = holdingArea.map { it.toPageEntryDTO(userId) },
             pages = pages.map { it.toPageSummary().toDTO() }
         )
     }

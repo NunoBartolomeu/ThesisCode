@@ -33,7 +33,7 @@ data class Entry(
         verifyFunction: (data: String, publicKey: String, signature: String) -> Boolean
     ): Boolean {
         return signatures.count() == senders.count() &&
-                signatures.all { verifyFunction(hash, it.signature, it.publicKey) }
+            signatures.all { verifyFunction(hash, it.signature, it.publicKey) }
     }
 }
 

@@ -4,6 +4,7 @@ import com.ledger.app.utils.CryptoProvider
 import com.ledger.app.utils.HashProvider
 import java.lang.IllegalStateException
 import java.util.*
+import java.util.concurrent.CopyOnWriteArrayList
 
 data class LedgerConfig(
     val name: String,
@@ -22,19 +23,11 @@ class Ledger(
         require(cryptoProvider.algorithm == config.cryptoAlgorithm)
     }
 
-    val pages = mutableListOf<Page>()
-    val holdingArea = mutableListOf<Entry>()
-    val verifiedEntries = mutableListOf<Entry>()
-    val entryMap = mutableMapOf<String, Entry>()
+    val pages = CopyOnWriteArrayList<Page>()
+    val holdingArea = CopyOnWriteArrayList<Entry>()
+    val verifiedEntries = CopyOnWriteArrayList<Entry>()
 
-    fun createEntry(
-        content: String,
-        senders: List<String>,
-        recipients: List<String>,
-        relatedEntries: List<String>,
-        keywords: List<String>
-    ): Entry {
-        require(senders.isNotEmpty())
+    fun createEntry(content: String, senders: List<String>, recipients: List<String>, relatedEntries: List<String>, keywords: List<String>): Entry {
         val builder = EntryBuilder(
             hashFunction = { data -> hashProvider.toHashString(hashProvider.hash(data)) },
             id = UUID.randomUUID().toString(),
@@ -46,37 +39,44 @@ class Ledger(
         )
         val entry = builder.build().copy(relatedEntries = relatedEntries, keywords = keywords)
         holdingArea.add(entry)
-        entryMap[entry.id] = entry
         return entry
     }
 
-    fun addSignature(entryId: String, sig: Entry.Signature): Boolean {
-        val entry = entryMap[entryId] ?: return false
-        if (!entry.senders.contains(sig.signerId)) return false
-        val signatures = entry.signatures.toMutableList()
-        if (signatures.any { it.signerId == sig.signerId }) return true
-        if (!cryptoProvider.verify(entry.hash, sig.signature, sig.publicKey)) return false
-        signatures.add(sig)
-        holdingArea.remove(entry)
+    fun addSignature(entryId: String, sig: Entry.Signature): Entry {
+        val entry = holdingArea.find { it.id == entryId } ?: throw Exception("Entry not found")
+        if (!entry.senders.contains(sig.signerId)) throw Exception("Sender is not present in entry")
 
+        val signatures = entry.signatures.toMutableList()
+        if (signatures.any { it.signerId == sig.signerId }) return entry
+        if (!cryptoProvider.verify(entry.hash, sig.signature, sig.publicKey)) throw Exception("Signature could not be verified")
+        signatures.add(sig)
         val newEntry = entry.copy(signatures = signatures)
 
-        println("New count: ${newEntry.signatures.count()}, old count: ${entry.signatures.count()}")
-
-        if (verifyEntry(newEntry)) {
-            verifiedEntries.add(newEntry)
-            println("Entries per page: ${config.entriesPerPage}, Verified entries: ${verifiedEntries.count()}, should create: ${verifiedEntries.count() == config.entriesPerPage}")
-            if (verifiedEntries.count() == config.entriesPerPage) {
-                createPage()
-            }
-        } else {
-            holdingArea.add(newEntry)
+        updateEntry(newEntry)
+        if (verifiedEntries.count() == config.entriesPerPage) {
+            createPage()
         }
-        return true
+
+        return newEntry
     }
 
     fun verifyEntry(entry: Entry): Boolean {
         return entry.isFullySigned() && entry.verifySignatures(cryptoProvider::verify)
+    }
+
+    fun getEntryById(id: String): Entry? {
+        return holdingArea.find { it.id == id } ?: verifiedEntries.find { it.id == id }
+    }
+
+    fun updateEntry(entry: Entry) {
+        holdingArea.removeIf { it.id == entry.id }
+        verifiedEntries.removeIf { it.id == entry.id }
+
+        if (verifyEntry(entry)) {
+            verifiedEntries.add(entry)
+        } else {
+            holdingArea.add(entry)
+        }
     }
 
     fun getInclusionProof(entry: Entry): List<ByteArray> {

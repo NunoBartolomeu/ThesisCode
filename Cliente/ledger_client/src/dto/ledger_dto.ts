@@ -3,7 +3,8 @@ export interface LedgerDTO {
   entriesPerPage: number;
   hashAlgorithm: string;
   cryptoAlgorithm: string;
-  holdingEntries: PageEntryDTO[];
+  verifiedEntries: PageEntryDTO[];
+  nonVerifiedEntries: PageEntryDTO[];
   pages: PageSummaryDTO[];
 }
 

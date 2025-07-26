@@ -6,7 +6,8 @@ data class LedgerDTO(
     val entriesPerPage: Int,
     val hashAlgorithm: String,
     val cryptoAlgorithm: String,
-    val holdingEntries: List<PageEntryDTO>,
+    val verifiedEntries: List<PageEntryDTO>,
+    val nonVerifiedEntries: List<PageEntryDTO>,
     val pages: List<PageSummaryDTO>
 )
 data class PageSummaryDTO(

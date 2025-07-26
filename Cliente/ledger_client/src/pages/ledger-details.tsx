@@ -63,11 +63,62 @@ export default function LedgerDetailsPage() {
     );
   };
 
-  const getEntryIcon = () => {
+  const getVerifiedEntryIcon = () => {
     return (
       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--success)' }}>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
+    );
+  };
+
+  const getNonVerifiedEntryIcon = () => {
+    return (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--warning)' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+      </svg>
+    );
+  };
+
+  const renderEntrySection = (entries: PageEntryDTO[], title: string, icon: () => JSX.Element, emptyMessage: string) => {
+    if (entries.length === 0) return null;
+
+    return (
+      <div className="rounded-2xl shadow-xl border-2 overflow-hidden" style={{ background: 'var(--gradient)', borderColor: 'var(--border)' }}>
+        <div className="px-6 py-4 border-b-2" style={{ borderColor: 'var(--border)' }}>
+          <h3 className="text-xl font-bold" style={{ color: 'var(--text)' }}>{title} ({entries.length})</h3>
+        </div>
+        <div className="divide-y-2" style={{ borderColor: 'var(--border)' }}>
+          {entries.map((entry) => (
+            <div 
+              key={entry.id}
+              className="px-6 py-4 transition-all duration-200 cursor-pointer"
+              style={{ backgroundColor: 'transparent' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--gradient-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+              onClick={() => router.push(`/entry-details?entry=${encodeURIComponent(entry.id)}`)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  {icon()}
+                  <div>
+                    <p className="font-medium" style={{ color: 'var(--text)' }}>Entry {entry.id}</p>
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                      {entry.isParticipant ? 'You are a participant' : 'Not a participant'}
+                    </p>
+                  </div>
+                </div>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--text-muted)' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   };
 
@@ -120,7 +171,8 @@ export default function LedgerDetailsPage() {
                   <div>
                     <h3 className="text-lg font-semibold border-b pb-2 mb-3" style={{ color: 'var(--text)' }}>📊 Statistics</h3>
                     <p style={{ color: 'var(--text-muted)' }}>Total pages: <span style={{ color: 'var(--text)' }}>{state.data.pages.length}</span></p>
-                    <p style={{ color: 'var(--text-muted)' }}>Holding entries: <span style={{ color: 'var(--text)' }}>{state.data.holdingEntries.length}</span></p>
+                    <p style={{ color: 'var(--text-muted)' }}>Verified entries: <span style={{ color: 'var(--text)' }}>{state.data.verifiedEntries.length}</span></p>
+                    <p style={{ color: 'var(--text-muted)' }}>Non-verified entries: <span style={{ color: 'var(--text)' }}>{state.data.nonVerifiedEntries.length}</span></p>
                   </div>
                 </div>
 
@@ -131,43 +183,18 @@ export default function LedgerDetailsPage() {
                 </div>
               </div>
 
-              {state.data.holdingEntries.length > 0 && (
-                <div className="rounded-2xl shadow-xl border-2 overflow-hidden" style={{ background: 'var(--gradient)', borderColor: 'var(--border)' }}>
-                  <div className="px-6 py-4 border-b-2" style={{ borderColor: 'var(--border)' }}>
-                    <h3 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Holding Area ({state.data.holdingEntries.length})</h3>
-                  </div>
-                  <div className="divide-y-2" style={{ borderColor: 'var(--border)' }}>
-                    {state.data.holdingEntries.map((entry) => (
-                      <div 
-                        key={entry.id}
-                        className="px-6 py-4 transition-all duration-200 cursor-pointer"
-                        style={{ backgroundColor: 'transparent' }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'var(--gradient-hover)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'transparent';
-                        }}
-                        onClick={() => router.push(`/entry-details?entry=${encodeURIComponent(entry.id)}`)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            {getEntryIcon()}
-                            <div>
-                              <p className="font-medium" style={{ color: 'var(--text)' }}>Entry {entry.id}</p>
-                              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                                {entry.isParticipant ? 'You are a participant' : 'Not a participant'}
-                              </p>
-                            </div>
-                          </div>
-                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--text-muted)' }}>
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              {renderEntrySection(
+                state.data.nonVerifiedEntries,
+                "⏳ Non-Verified Entries",
+                getNonVerifiedEntryIcon,
+                "No non-verified entries"
+              )}
+
+              {renderEntrySection(
+                state.data.verifiedEntries,
+                "✅ Verified Entries",
+                getVerifiedEntryIcon,
+                "No verified entries"
               )}
 
               <div className="rounded-2xl shadow-xl border-2 overflow-hidden" style={{ background: 'var(--gradient)', borderColor: 'var(--border)' }}>

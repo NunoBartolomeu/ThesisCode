@@ -13,7 +13,7 @@ data class RGB(val r: Int, val g: Int, val b: Int) {
 
     companion object {
         val RED_BRIGHT = RGB(255, 0, 0)
-        val RED_DARK = RGB(139, 0, 0)
+        val RED_DARK = RGB(156, 80, 80)
         val RED_SOFT = RGB(255, 99, 71)
 
         val GREEN_LIME = RGB(50, 205, 50)
