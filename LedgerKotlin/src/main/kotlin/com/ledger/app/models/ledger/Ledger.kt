@@ -13,19 +13,18 @@ data class LedgerConfig(
     val cryptoAlgorithm: String
 )
 
-class Ledger(
+data class Ledger(
     val config: LedgerConfig,
     private val hashProvider: HashProvider,
     private val cryptoProvider: CryptoProvider,
+    val pages: MutableList<Page> = CopyOnWriteArrayList(),
+    val holdingArea: CopyOnWriteArrayList<Entry> = CopyOnWriteArrayList(),
+    val verifiedEntries: CopyOnWriteArrayList<Entry> = CopyOnWriteArrayList()
 ) {
     init {
         require(hashProvider.algorithm == config.hashAlgorithm)
         require(cryptoProvider.algorithm == config.cryptoAlgorithm)
     }
-
-    val pages = CopyOnWriteArrayList<Page>()
-    val holdingArea = CopyOnWriteArrayList<Entry>()
-    val verifiedEntries = CopyOnWriteArrayList<Entry>()
 
     fun createEntry(content: String, senders: List<String>, recipients: List<String>, relatedEntries: List<String>, keywords: List<String>): Entry {
         val builder = EntryBuilder(
@@ -96,7 +95,7 @@ class Ledger(
             ledgerName = this.config.name,
             number = pages.size,
             timestamp = System.currentTimeMillis(),
-            previousHash = pages.lastOrNull()?.hash ?: "",
+            previousHash = pages.lastOrNull()?.hash,
             entries = toAdd,
         )
         pages.add(builder.build())

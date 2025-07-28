@@ -1,21 +1,20 @@
 package com.ledger.app.services.ledger
 
 import com.ledger.app.models.ledger.Entry
+import com.ledger.app.models.ledger.Ledger
 import com.ledger.app.models.ledger.LedgerConfig
 import com.ledger.app.models.ledger.Page
 
 interface LedgerRepo {
-    fun saveLedgerConfig(config: LedgerConfig): Boolean
-    fun getLedgerConfig(name: String): LedgerConfig?
+    fun getAllLedgers(): List<LedgerConfig>
+    fun createLedger(ledger: Ledger)
+    fun readLedger(ledgerName: String): Ledger?
 
-    fun getAllLedgersNames(): List<String>
+    fun createPage(page: Page)
+    fun readPage(ledgerName: String, pageNumber: Int): Page?
+    fun updatePageForTamperEvidenceTesting(page: Page) // THIS IS TO TEST THE WARDEN, REMOVE IN ACTUAL PROJECT
 
-    fun savePage(page: Page): Boolean
-    fun getPage(ledgerName: String, pageNumber: Int): Page?
-    fun getAllPages(ledgerName: String): List<Page>
-    fun saveEntry(entry: Entry): Boolean
-    fun getEntry(entryId: String): Entry?
-    fun getEntriesByLedger(ledgerName: String): List<Entry>
-    fun getHoldingEntries(ledgerName: String): List<Entry>
-    fun getVerifiedEntries(ledgerName: String): List<Entry>
+    fun createEntry(entry: Entry)
+    fun readEntry(entryId: String): Entry?
+    fun updateEntry(entry: Entry)
 }

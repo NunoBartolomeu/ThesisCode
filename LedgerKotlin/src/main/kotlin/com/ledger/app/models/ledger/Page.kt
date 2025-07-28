@@ -70,18 +70,20 @@ class PageBuilder(
         this.entries.addAll(entries)
     }
 
-    private fun computeMerkleRoot(): String {
-        var layer = entries.map { it.hash }
-        while (layer.size > 1) {
-            val nextLayer = mutableListOf<String>()
-            for (i in layer.indices step 2) {
-                val left = layer[i]
-                val right = if (i + 1 < layer.size) layer[i + 1] else left
-                nextLayer.add(hashFunction("$left|$right"))
+    companion object {
+        fun computeMerkleRoot(entries: List<Entry>, hashFunction: (String) -> String): String {
+            var layer = entries.map { it.hash }
+            while (layer.size > 1) {
+                val nextLayer = mutableListOf<String>()
+                for (i in layer.indices step 2) {
+                    val left = layer[i]
+                    val right = if (i + 1 < layer.size) layer[i + 1] else left
+                    nextLayer.add(hashFunction("$left|$right"))
+                }
+                layer = nextLayer
             }
-            layer = nextLayer
+            return layer[0]
         }
-        return layer[0]
     }
 
     fun build(): Page {
@@ -90,7 +92,7 @@ class PageBuilder(
         val pageTimestamp = timestamp   ?: throw IllegalStateException("Page timestamp is required")
         if (entries.isEmpty())             throw IllegalStateException("Entries can't be empty")
 
-        val merkleRoot = computeMerkleRoot()
+        val merkleRoot = computeMerkleRoot(entries, hashFunction)
 
         val hash = hashFunction(listOf(
             pageLedgerName,

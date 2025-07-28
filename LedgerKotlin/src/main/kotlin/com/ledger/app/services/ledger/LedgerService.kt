@@ -19,11 +19,9 @@ interface LedgerService {
 
     fun getAvailableLedgers(): List<String>
     fun getLedger(ledgerName: String): Ledger?
-    fun validateChain(ledgerName: String): Boolean
 
     fun getPage(ledgerName: String, number: Int): Page?
     fun getPageSummary(ledgerName: String, pageNumber: Int): PageSummary?
-    fun validatePage(ledgerName: String, pageNumber: Int): Boolean
 
     fun getEntry(entryId: String): Entry?
     fun getEntriesBySender(ledgerName: String, userId: String): List<Entry>
