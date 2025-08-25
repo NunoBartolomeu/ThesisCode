@@ -1,6 +1,6 @@
 package com.ledger.app.components.security
 
-import com.ledger.app.services.auth.AuthRepo
+import com.ledger.app.repositories.auth.AuthRepo
 import com.ledger.app.services.auth.implementations.AuthServiceSpring
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel

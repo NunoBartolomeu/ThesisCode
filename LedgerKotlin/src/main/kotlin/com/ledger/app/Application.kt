@@ -1,9 +1,5 @@
 package com.ledger.app
 
-import com.ledger.app.utils.CryptoProvider
-import com.ledger.app.utils.HashProvider
-import com.ledger.app.utils.implementations.RSACryptoProvider
-import com.ledger.app.utils.implementations.SHA256HashProvider
 import jakarta.annotation.PostConstruct
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -24,10 +20,6 @@ fun main(args: Array<String>) {
 
 @Configuration
 class AppConfig{
-    @Bean
-    fun hashProvider(): HashProvider = SHA256HashProvider()
-    @Bean
-    fun cryptoProvider(): CryptoProvider = RSACryptoProvider()
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
     @Bean

@@ -1,19 +1,18 @@
 package com.ledger.app.services.ledger.implementations
 
 import com.ledger.app.models.ledger.Entry
-import com.ledger.app.models.ledger.EntryBuilder
 import com.ledger.app.models.ledger.Ledger
 import com.ledger.app.models.ledger.Page
 import com.ledger.app.models.ledger.PageBuilder
-import com.ledger.app.services.ledger.LedgerRepo
+import com.ledger.app.models.ledger.PageBuilder.Companion.computeMerkleTree
+import com.ledger.app.repositories.ledger.LedgerRepo
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.CryptoProvider
-import com.ledger.app.utils.HashProvider
+import com.ledger.app.utils.hash.HashProvider
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
+import com.ledger.app.utils.signature.SignatureProvider
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
-import java.util.concurrent.ConcurrentHashMap
 
 data class LedgerIntegrityReport(
     val ledgerName: String,
@@ -24,7 +23,7 @@ data class LedgerIntegrityReport(
 )
 
 enum class ValidationResult {
-    SUCCESS,
+    VALIDATION_SUCCESSFUL,
     TAMPERING_DETECTED
 }
 
@@ -48,9 +47,7 @@ enum class ErrorType {
 
 @Service
 class LedgerWarden(
-    private val repo: LedgerRepo,
-    private val hashProvider: HashProvider,
-    private val cryptoProvider: CryptoProvider
+    private val repo: LedgerRepo
 ) {
     private val logger = ColorLogger("LedgerWarden", RGB.YELLOW_BRIGHT, LogLevel.DEBUG)
 
@@ -67,7 +64,7 @@ class LedgerWarden(
                 reports.add(report)
 
                 when (report.result) {
-                    ValidationResult.SUCCESS -> logger.info("✓ Ledger '${config.name}': ${report.context}")
+                    ValidationResult.VALIDATION_SUCCESSFUL -> logger.info("✓ Ledger '${config.name}': ${report.context}")
                     ValidationResult.TAMPERING_DETECTED -> logger.error("✗ Ledger '${config.name}': ${report.context}")
                 }
             } catch (e: Exception) {
@@ -77,12 +74,10 @@ class LedgerWarden(
                     firstPage = -1,
                     lastPage = -1,
                     result = ValidationResult.TAMPERING_DETECTED,
-                    context = "Validation failed: ${e.message}"
+                    context = "Validation Error: ${e.message}"
                 ))
             }
         }
-
-        logger.info("Completed validation of ${reports.size} ledgers")
     }
 
     fun validateLedger(ledgerName: String): LedgerIntegrityReport {
@@ -100,7 +95,7 @@ class LedgerWarden(
                 ledgerName = ledgerName,
                 firstPage = -1,
                 lastPage = -1,
-                result = ValidationResult.SUCCESS,
+                result = ValidationResult.VALIDATION_SUCCESSFUL,
                 context = "No pages to validate"
             )
         }
@@ -126,7 +121,7 @@ class LedgerWarden(
             ledgerName = ledgerName,
             firstPage = firstPage,
             lastPage = lastPage,
-            result = ValidationResult.SUCCESS,
+            result = ValidationResult.VALIDATION_SUCCESSFUL,
             context = "No tampering found"
         )
     }
@@ -187,7 +182,7 @@ class LedgerWarden(
         }
 
         // Validate merkle root
-        val calculatedMerkleRoot = calculateMerkleRoot(page.entries)
+        val calculatedMerkleRoot = calculateMerkleRoot(page.entries, ledger.config.hashAlgorithm)
         if (page.merkleRoot != calculatedMerkleRoot) {
             return ValidationError(
                 type = ErrorType.MERKLE_ROOT_MISMATCH,
@@ -197,8 +192,7 @@ class LedgerWarden(
             )
         }
 
-        // LOG HASH VALUES BEING TESTED
-        val calculatedPageHash = calculatePageHash(page)
+        val calculatedPageHash = calculatePageHash(page, ledger.config.hashAlgorithm)
 
         // Validate page hash
         if (page.hash != calculatedPageHash) {
@@ -212,7 +206,7 @@ class LedgerWarden(
 
         // Validate all entries in the page
         for (entry in page.entries) {
-            val entryValidation = validateEntry(entry, page)
+            val entryValidation = validateEntry(entry, page, ledger)
             if (entryValidation != null) {
                 return entryValidation
             }
@@ -229,7 +223,7 @@ class LedgerWarden(
         ).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"))
     }
 
-    private fun validateEntry(entry: Entry, page: Page): ValidationError? {
+    private fun validateEntry(entry: Entry, page: Page, ledger: Ledger): ValidationError? {
         // Validate ledger name matches
         if (entry.ledgerName != page.ledgerName) {
             return ValidationError(
@@ -261,7 +255,7 @@ class LedgerWarden(
         }
 
         // Validate entry hash
-        val calculatedEntryHash = calculateEntryHash(entry)
+        val calculatedEntryHash = calculateEntryHash(entry, ledger.config.hashAlgorithm)
         if (entry.hash != calculatedEntryHash) {
             return ValidationError(
                 type = ErrorType.HASH_DISCREPANCY,
@@ -311,7 +305,7 @@ class LedgerWarden(
         // Validate all signatures are cryptographically valid
         for (signature in entry.signatures) {
             try {
-                if (!cryptoProvider.verify(entry.hash, signature.signature, signature.publicKey)) {
+                if (!SignatureProvider.verify(entry.hash, signature.signatureData, signature.publicKey, signature.algorithm)) {
                     return ValidationError(
                         type = ErrorType.SIGNATURE_INVALID,
                         pageNumber = null,
@@ -332,11 +326,12 @@ class LedgerWarden(
         return null
     }
 
-    private fun calculateMerkleRoot(entries: List<Entry>): String {
-        return PageBuilder.computeMerkleRoot(entries, { data -> hashProvider.toHashString(hashProvider.hash(data)) })
+    private fun calculateMerkleRoot(entries: List<Entry>, hashAlgorithm: String): String {
+        val merkleTree = computeMerkleTree(entries, hashAlgorithm)
+        return merkleTree[merkleTree.size - 1][0]
     }
 
-    private fun calculatePageHash(page: Page): String {
+    private fun calculatePageHash(page: Page, hashAlgorithm: String): String {
         val data =listOf(
             page.ledgerName,
             page.number.toString(),
@@ -344,10 +339,10 @@ class LedgerWarden(
             page.previousHash,
             page.merkleRoot,
         ).joinToString("|")
-        return hashProvider.toHashString(hashProvider.hash(data))
+        return HashProvider.toHashString(HashProvider.hash(data, hashAlgorithm))
     }
 
-    private fun calculateEntryHash(entry: Entry): String {
+    private fun calculateEntryHash(entry: Entry, hashAlgorithm: String): String {
         val data = listOf(
             entry.id,
             entry.timestamp.toString(),
@@ -355,6 +350,6 @@ class LedgerWarden(
             entry.senders.joinToString(","),
             entry.recipients.joinToString(",")
         ).joinToString("|")
-        return hashProvider.toHashString(hashProvider.hash(data))
+        return HashProvider.toHashString(HashProvider.hash(data, hashAlgorithm))
     }
 }

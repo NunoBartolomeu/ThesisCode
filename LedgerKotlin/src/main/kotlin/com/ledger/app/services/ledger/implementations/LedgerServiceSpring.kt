@@ -1,7 +1,7 @@
 package com.ledger.app.services.ledger.implementations
 
-import com.ledger.app.services.sys_kp.implementations.SysKeyPairServiceLocal
-import com.ledger.app.services.ledger.LedgerRepo
+import com.ledger.app.services.key_management.implementations.KeyManagementServiceLocal
+import com.ledger.app.repositories.ledger.LedgerRepo
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.models.ledger.Entry
 import com.ledger.app.models.ledger.Ledger
@@ -9,10 +9,9 @@ import com.ledger.app.models.ledger.LedgerConfig
 import com.ledger.app.models.ledger.Page
 import com.ledger.app.models.ledger.PageSummary
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.CryptoProvider
-import com.ledger.app.utils.HashProvider
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
+import com.ledger.app.utils.signature.SignatureProvider
 import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
 import java.lang.IllegalArgumentException
@@ -20,9 +19,7 @@ import java.lang.IllegalArgumentException
 @Service
 class LedgerServiceSpring (
     private val repo: LedgerRepo,
-    private val hashProvider: HashProvider,
-    private val cryptoProvider: CryptoProvider,
-    private val sysKeyPairServiceLocal: SysKeyPairServiceLocal
+    private val sysKeyPairServiceLocal: KeyManagementServiceLocal
 ) : LedgerService {
     private val logger = ColorLogger("LedgerService", RGB.RED_BRIGHT, LogLevel.DEBUG)
     private val activeLedgers = mutableMapOf<String, Ledger>()
@@ -45,9 +42,9 @@ class LedgerServiceSpring (
         ledger?.let { it.pages[page.number] = page }
     }
 
-    override fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String, cryptoAlgorithm: String) {
-        val config = LedgerConfig(name, linesPerPage, hashAlgorithm, cryptoAlgorithm)
-        val ledger = Ledger(config, hashProvider, cryptoProvider)
+    override fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String) {
+        val config = LedgerConfig(name, linesPerPage, hashAlgorithm)
+        val ledger = Ledger(config)
         repo.createLedger(ledger) 
         activeLedgers[name] = ledger
         logger.info("Ledger ${ledger.config.name} was created")
@@ -81,15 +78,15 @@ class LedgerServiceSpring (
         }
     }
 
-    override fun logSystemEvent(ledgerName: String, declaringSystem: String, userId: String?, details: String) {
-        val entry = createEntry(ledgerName, details, listOf(declaringSystem), if (userId!=null)listOf(userId) else listOf())!!
-        val signature = cryptoProvider.sign(entry.hash, sysKeyPairServiceLocal.getKeyPair().private)
+    override fun logSystemEvent(ledgerName: String, declaringService: String, userId: String?, details: String) {
+        val entry = createEntry(ledgerName, details, listOf(declaringService), if (userId!=null)listOf(userId) else listOf())!!
+        val signature = SignatureProvider.sign(entry.hash, sysKeyPairServiceLocal.getSystemKeyPair().private, null)
         signEntry(
             entryId = entry.id,
-            signerId = declaringSystem,
-            signature = cryptoProvider.keyOrSigToString(signature),
-            publicKey = cryptoProvider.keyOrSigToString(sysKeyPairServiceLocal.getKeyPair().public.encoded),
-            signingAlgorithm = cryptoProvider.algorithm
+            signerId = declaringService,
+            signature = SignatureProvider.keyOrSigToString(signature),
+            publicKey = SignatureProvider.keyOrSigToString(sysKeyPairServiceLocal.getSystemKeyPair().public.encoded),
+            signingAlgorithm = SignatureProvider.getDefaultAlgorithm()
         )
     }
 
@@ -193,11 +190,9 @@ class LedgerServiceSpring (
         return ledger.holdingArea.filter { it.senders.contains(userId) && it.signatures.none { s -> s.signerId == userId } }
     }
 
-    override fun getInclusionProof(entryId: String): List<ByteArray> {
+    override fun getInclusionProof(entryId: String): List<String> {
         val entry = repo.readEntry(entryId) ?: return emptyList()
         val ledger = getLedger(entry.ledgerName) ?: return emptyList()
         return ledger.getInclusionProof(entry)
     }
-
-    override fun getHasher(): HashProvider = hashProvider
 }

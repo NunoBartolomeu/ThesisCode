@@ -133,7 +133,7 @@ class LedgerController(
                     participant = resolveName(it.signerId),
                     email = it.signerId,
                     publicKey = it.publicKey,
-                    signature = it.signature
+                    signature = it.signatureData
                 )
             },
             relatedEntryIds = relatedEntries,
@@ -162,7 +162,6 @@ class LedgerController(
             name = config.name,
             entriesPerPage = config.entriesPerPage,
             hashAlgorithm = config.hashAlgorithm,
-            cryptoAlgorithm = config.cryptoAlgorithm,
             verifiedEntries = verifiedEntries.map {it.toPageEntryDTO(userId) },
             nonVerifiedEntries = holdingArea.map { it.toPageEntryDTO(userId) },
             pages = pages.map { it.toPageSummary().toDTO() }

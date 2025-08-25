@@ -4,13 +4,12 @@ import com.ledger.app.models.ledger.Entry
 import com.ledger.app.models.ledger.Ledger
 import com.ledger.app.models.ledger.Page
 import com.ledger.app.models.ledger.PageSummary
-import com.ledger.app.utils.HashProvider
 
 interface LedgerService {
-    fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String, cryptoAlgorithm: String)
+    fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String)
     fun createEntry(ledgerName: String, content: String, senders: List<String>, recipients: List<String>, relatedEntries: List<String> = emptyList(), keywords: List<String> = emptyList()): Entry?
     fun signEntry(entryId: String, signerId: String, signature: String, publicKey: String, signingAlgorithm: String)
-    fun logSystemEvent(ledgerName: String, declaringSystem: String, userId: String?, details: String)
+    fun logSystemEvent(ledgerName: String, declaringService: String, userId: String?, details: String)
 
     fun addKeywords(entryId: String, keywords: List<String>)
     fun removeKeyword(entryId: String, keyword: String)
@@ -30,6 +29,5 @@ interface LedgerService {
     fun getRelatedEntries(entryId: String): List<Entry>
     fun getEntriesNeedingSignature(ledgerName: String, userId: String): List<Entry>
 
-    fun getInclusionProof(entryId: String): List<ByteArray>
-    fun getHasher(): HashProvider
+    fun getInclusionProof(entryId: String): List<String>
 }

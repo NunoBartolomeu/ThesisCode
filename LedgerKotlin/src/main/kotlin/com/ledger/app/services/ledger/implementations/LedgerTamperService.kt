@@ -2,7 +2,7 @@ package com.ledger.app.services.ledger.implementations
 
 import com.ledger.app.models.ledger.Entry
 import com.ledger.app.models.ledger.Page
-import com.ledger.app.services.ledger.LedgerRepo
+import com.ledger.app.repositories.ledger.LedgerRepo
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
@@ -267,10 +267,10 @@ class LedgerTamperingService(
 
         val targetEntry = entriesWithSignatures.random()
         val targetSignature = targetEntry.signatures.random()
-        val originalValue = targetSignature.signature
+        val originalValue = targetSignature.signatureData
         val tamperedValue = modifySignatureString(originalValue)
 
-        val tamperedSignature = targetSignature.copy(signature = tamperedValue)
+        val tamperedSignature = targetSignature.copy(signatureData = tamperedValue)
         val tamperedSignatures = targetEntry.signatures.map {
             if (it.signerId == targetSignature.signerId) tamperedSignature else it
         }
@@ -354,7 +354,7 @@ class LedgerTamperingService(
             }
             TamperType.SIGNATURE_VALUE -> {
                 restoreSignatureField(targetPage, tamperState.entryId!!, tamperState.originalValue) { signature, originalValue ->
-                    signature.copy(signature = originalValue)
+                    signature.copy(signatureData = originalValue)
                 }
             }
             TamperType.SIGNATURE_PUBLIC_KEY -> {
@@ -378,7 +378,7 @@ class LedgerTamperingService(
     private fun restoreSignatureField(page: Page, entryId: String, originalValue: String, restoreFunction: (Entry.Signature, String) -> Entry.Signature) {
         val targetEntry = page.entries.find { it.id == entryId } ?: return
         val targetSignature = targetEntry.signatures.find {
-            it.signature == tamperStates[page.ledgerName]?.tamperedValue ||
+            it.signatureData == tamperStates[page.ledgerName]?.tamperedValue ||
                     it.publicKey == tamperStates[page.ledgerName]?.tamperedValue
         } ?: return
 

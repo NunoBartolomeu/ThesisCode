@@ -3,7 +3,7 @@ package com.ledger.app.services.rbac.implementations
 import com.ledger.app.models.Permission
 import com.ledger.app.models.Role
 import com.ledger.app.services.ledger.LedgerService
-import com.ledger.app.services.rbac.RBACRepo
+import com.ledger.app.repositories.rbac.RBACRepo
 import com.ledger.app.services.rbac.RBACService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel

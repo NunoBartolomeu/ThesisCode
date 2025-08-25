@@ -2,16 +2,16 @@ package com.ledger.app.services.auth.implementations
 
 import com.ledger.app.models.Token
 import com.ledger.app.models.User
-import com.ledger.app.services.auth.AuthRepo
+import com.ledger.app.repositories.auth.AuthRepo
 import com.ledger.app.services.auth.AuthService
 import com.ledger.app.services.files.FilesService
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.services.two_fa.TwoFAService
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.CryptoProvider
-import com.ledger.app.utils.HashProvider
+import com.ledger.app.utils.hash.HashProvider
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
+import com.ledger.app.utils.signature.SignatureProvider
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import io.jsonwebtoken.security.Keys
@@ -26,8 +26,6 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class AuthServiceSpring(
-    hashProvider: HashProvider,
-    cryptoProvider: CryptoProvider,
     private val repo: AuthRepo,
     private val ledgerService: LedgerService,
     @Lazy private val filesService: FilesService,
@@ -35,7 +33,7 @@ class AuthServiceSpring(
     private val passwordEncoder: PasswordEncoder,
 ) : AuthService {
 
-    private val AUTH_SYSTEM = "auth_service"
+    private val AUTH_SERVICE = "auth_service"
     private val AUTH_LEDGER = "auth_ledger"
 
     private val logger = ColorLogger("AuthService", RGB.GREEN_LIME, LogLevel.DEBUG)
@@ -105,7 +103,7 @@ class AuthServiceSpring(
     }
 
     init {
-        ledgerService.createLedger(AUTH_LEDGER, 2, hashProvider.algorithm, cryptoProvider.algorithm)
+        ledgerService.createLedger(AUTH_LEDGER, 2, HashProvider.getDefaultAlgorithm())
     }
 
     private fun generateId(): String = UUID.randomUUID().toString()
@@ -123,10 +121,10 @@ class AuthServiceSpring(
             throw IllegalArgumentException("Invalid credentials")
         }
 
-        twoFAService.sendCode(email)
+        twoFAService.sendCode(email, AUTH_SERVICE)
 
         logger.info("Registered user ${user.fullName}, needing verification")
-        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SYSTEM, user.id, "Registered new user ${user.id}, needs verification")
+        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "Registered new user ${user.id}, needs verification")
 
         filesService.initiateLedgerForUser(user.id)
 
@@ -146,15 +144,15 @@ class AuthServiceSpring(
             throw IllegalArgumentException("Invalid credentials")
         }
 
-        twoFAService.sendCode(email)
+        twoFAService.sendCode(email, AUTH_SERVICE)
 
         logger.info("Authenticated user ${user.fullName}")
-        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SYSTEM, user.id, "Authenticated user ${user.fullName}")
+        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "Authenticated user ${user.fullName}")
         return user
     }
 
     override fun verifyCodeAndGetToken(email: String, code: String): Token {
-        if (!twoFAService.verifyCode(email, code)) {
+        if (!twoFAService.verifyCode(email, code, AUTH_SERVICE)) {
             logger.error("Invalid or expired verification code for $email")
             throw IllegalArgumentException("Invalid or expired verification code for $email")
         }
@@ -172,7 +170,7 @@ class AuthServiceSpring(
         activeTokens[accessToken] = email
 
         logger.info("User ${user.fullName} authenticated successfully")
-        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SYSTEM, user.id, "User ${user.fullName} authenticated successfully")
+        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "User ${user.fullName} authenticated successfully")
 
         return Token(
             accessToken = accessToken,

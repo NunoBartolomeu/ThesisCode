@@ -1,5 +1,6 @@
-
 package com.ledger.app.models.ledger
+
+import com.ledger.app.utils.hash.HashProvider
 
 data class PageSummary(
     val ledgerName: String,
@@ -31,28 +32,29 @@ data class Page(
     )
 }
 
-class PageBuilder(
-    private val hashFunction: (String) -> String
-) {
+class PageBuilder() {
     private var ledgerName: String? = null
     private var number: Int? = null
     private var timestamp: Long? = null
     private var previousHash: String? = null
     private val entries = mutableListOf<Entry>()
 
+    private var hashAlgorithm: String? = null
+
     constructor(
-        hashFunction: (String) -> String,
         ledgerName: String,
         number: Int,
         timestamp: Long = System.currentTimeMillis(),
         previousHash: String? = null,
-        entries: List<Entry>
-    ) : this(hashFunction) {
+        entries: List<Entry>,
+        hashAlgorithm: String
+    ) : this() {
         this.ledgerName = ledgerName
         this.number = number
         this.timestamp = timestamp
         this.previousHash = previousHash
         this.entries.addAll(entries)
+        this.hashAlgorithm = hashAlgorithm
     }
 
     fun ledgerName(ledgerName: String) = apply { this.ledgerName = ledgerName }
@@ -71,36 +73,63 @@ class PageBuilder(
     }
 
     companion object {
-        fun computeMerkleRoot(entries: List<Entry>, hashFunction: (String) -> String): String {
-            var layer = entries.map { it.hash }
-            while (layer.size > 1) {
-                val nextLayer = mutableListOf<String>()
-                for (i in layer.indices step 2) {
-                    val left = layer[i]
-                    val right = if (i + 1 < layer.size) layer[i + 1] else left
-                    nextLayer.add(hashFunction("$left|$right"))
+        fun computeMerkleTree(entries: List<Entry>, hashAlgorithm: String): List<List<String>> {
+            if (entries.isEmpty()) throw IllegalStateException("Cannot compute Merkle tree for empty entries")
+
+            val layers = mutableListOf<List<String>>()
+            var currentLevel = entries.map { it.hash }
+            layers.add(currentLevel.toList())
+
+            while (currentLevel.size > 1) {
+                val nextLevel = mutableListOf<String>()
+                for (i in currentLevel.indices step 2) {
+                    val left = currentLevel[i]
+                    val right = if (i + 1 < currentLevel.size) currentLevel[i + 1] else left
+                    nextLevel.add(HashProvider.toHashString(HashProvider.hash("$left|$right", hashAlgorithm)))
                 }
-                layer = nextLayer
+                currentLevel = nextLevel
+                layers.add(nextLevel.toList())
             }
-            return layer[0]
+
+            return layers
+        }
+
+        fun computeHash(
+            ledgerName: String,
+            number: Int,
+            timestamp: Long,
+            previousHash: String?,
+            merkleRoot: String,
+            hashAlgorithm: String
+        ): String {
+            return HashProvider.toHashString(HashProvider.hash(listOf(
+                ledgerName,
+                number.toString(),
+                timestamp.toString(),
+                previousHash,
+                merkleRoot,
+            ).joinToString("|"), hashAlgorithm))
         }
     }
 
     fun build(): Page {
-        val pageLedgerName = ledgerName ?: throw IllegalStateException("Ledger name is required")
-        val pageNumber = number         ?: throw IllegalStateException("Page number is required")
-        val pageTimestamp = timestamp   ?: throw IllegalStateException("Page timestamp is required")
-        if (entries.isEmpty())             throw IllegalStateException("Entries can't be empty")
+        val pageLedgerName = ledgerName     ?: throw IllegalStateException("Ledger name is required")
+        val pageNumber = number             ?: throw IllegalStateException("Page number is required")
+        val pageTimestamp = timestamp       ?: throw IllegalStateException("Page timestamp is required")
+        val hashAlgorithm = hashAlgorithm   ?: throw IllegalStateException("Hash algorithm required")
+        if (entries.isEmpty())                 throw IllegalStateException("Entries can't be empty")
 
-        val merkleRoot = computeMerkleRoot(entries, hashFunction)
+        val merkleTree = computeMerkleTree(entries, hashAlgorithm)
+        val merkleRoot = merkleTree[merkleTree.size - 1][0]
 
-        val hash = hashFunction(listOf(
-            pageLedgerName,
-            pageNumber.toString(),
-            pageTimestamp,
-            previousHash,
-            merkleRoot,
-        ).joinToString("|"))
+        val hash = computeHash(
+            ledgerName = pageLedgerName,
+            number = pageNumber,
+            timestamp = pageTimestamp,
+            previousHash = previousHash,
+            merkleRoot = merkleRoot,
+            hashAlgorithm = hashAlgorithm
+        )
 
         return Page(
             ledgerName = pageLedgerName,

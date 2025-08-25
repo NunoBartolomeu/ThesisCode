@@ -1,5 +1,8 @@
 package com.ledger.app.models.ledger
 
+import com.ledger.app.utils.hash.HashProvider
+import com.ledger.app.utils.signature.SignatureProvider
+
 data class Entry(
     val id: String,
     val timestamp: Long,
@@ -19,49 +22,47 @@ data class Entry(
     data class Signature(
         val signerId: String,
         val publicKey: String,
-        val signature: String,
+        val signatureData: String,
         val algorithm: String
     )
 
-    fun isFullySigned(): Boolean {
-        return senders.all { sender ->
-            signatures.any { it.signerId == sender }
-        }
+    fun verify(): Boolean {
+        return senders.all { sender -> signatures.any { it.signerId == sender } } &&
+                signatures.all { sig ->
+                    SignatureProvider.verify(hash, sig.signatureData, sig.publicKey, sig.algorithm)
+                }
     }
 
-    fun verifySignatures(
-        verifyFunction: (data: String, publicKey: String, signature: String) -> Boolean
-    ): Boolean {
-        return signatures.count() == senders.count() &&
-            signatures.all { verifyFunction(hash, it.signature, it.publicKey) }
+    fun isDeleted(): Boolean {
+        return content.startsWith("DELETED_ENTRY")
     }
 }
 
-class EntryBuilder(
-    private val hashFunction: (String) -> String
-) {
+class EntryBuilder() {
     private var id: String? = null
     private var timestamp: Long? = null
     private var content: String? = null
     private val senders = mutableListOf<String>()
     private val recipients = mutableListOf<String>()
     private var ledgerName: String?= null
+    private var hashAlgorithm: String? = null
 
     constructor(
-        hashFunction: (String) -> String,
         id: String,
         timestamp: Long,
         content: String,
         senders: List<String>,
         recipients: List<String> = emptyList(),
-        ledgerName: String
-    ) : this(hashFunction) {
+        ledgerName: String,
+        hashAlgorithm: String
+    ) : this() {
         this.id = id
         this.timestamp = timestamp
         this.content = content
         this.senders.addAll(senders)
         this.recipients.addAll(recipients)
         this.ledgerName = ledgerName
+        this.hashAlgorithm = hashAlgorithm
     }
 
     fun id(id: String) = apply { this.id = id }
@@ -86,23 +87,41 @@ class EntryBuilder(
 
     fun ledgerName(ledgerName: String) = apply { this.ledgerName = ledgerName }
 
-    /**
-     * Build the Entry with automatic hash computation
-     */
+    companion object {
+        fun computeHash(
+            id: String,
+            timestamp: Long,
+            content: String,
+            senders: List<String>,
+            recipients: List<String>,
+            hashAlgorithm: String
+        ): String {
+            return HashProvider.toHashString(HashProvider.hash(listOf(
+                id,
+                timestamp.toString(),
+                content,
+                senders.joinToString(","),
+                recipients.joinToString(",")
+            ).joinToString("|"), hashAlgorithm))
+        }
+    }
+
     fun build(): Entry {
         val entryId = id ?:                 throw IllegalStateException("Entry ID is required")
         val entryTimestamp = timestamp ?:   throw IllegalStateException("Entry timestamp is required")
         val entryContent = content?:        throw IllegalStateException("Entry content is required")
         val entryLedgerName = ledgerName ?: throw IllegalStateException("Ledger name is required")
+        val hashAlgorithm = hashAlgorithm?: throw IllegalStateException("Hash algorithm is required")
         if (senders.isEmpty())              throw IllegalStateException("At least one sender is required")
 
-        val hash = hashFunction(listOf(
-            entryId,
-            entryTimestamp.toString(),
-            entryContent,
-            senders.joinToString(","),
-            recipients.joinToString(",")
-        ).joinToString("|"))
+        val hash = computeHash(
+            id = entryId,
+            timestamp = entryTimestamp,
+            content = entryContent,
+            senders = senders,
+            recipients = recipients,
+            hashAlgorithm = hashAlgorithm
+        )
 
         return Entry(
             id = entryId,
