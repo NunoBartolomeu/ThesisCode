@@ -103,7 +103,9 @@ class AuthServiceSpring(
     }
 
     init {
-        ledgerService.createLedger(AUTH_LEDGER, 2, HashProvider.getDefaultAlgorithm())
+        if (ledgerService.getLedger(AUTH_LEDGER) == null) {
+            ledgerService.createLedger(AUTH_LEDGER, 2, HashProvider.getDefaultAlgorithm())
+        }
     }
 
     private fun generateId(): String = UUID.randomUUID().toString()

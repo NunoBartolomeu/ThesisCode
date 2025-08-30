@@ -12,7 +12,6 @@ import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
 import com.ledger.app.utils.signature.SignatureProvider
-import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
 import java.lang.IllegalArgumentException
 
@@ -31,6 +30,9 @@ class LedgerServiceSpring (
     }
 
     private fun saveEntry(entry: Entry) {
+        if (repo.readEntry(entry.id) == null) {
+            repo.createEntry(entry)
+        }
         repo.updateEntry(entry)
         val ledger = getLedger(entry.ledgerName)
         ledger?.updateEntry(entry)
@@ -58,7 +60,6 @@ class LedgerServiceSpring (
         return entry
     }
 
-    @Transactional
     override fun signEntry(entryId: String, signerId: String, signature: String, publicKey: String, signingAlgorithm: String) {
         val entry = repo.readEntry(entryId) ?: return logger.warn("Entry $entryId not found")
         val ledger = getLedger(entry.ledgerName) ?: return logger.warn("Ledger ${entry.ledgerName} not found")
@@ -76,6 +77,21 @@ class LedgerServiceSpring (
             savePage(ledger.pages.last())
             logger.info("Page ${ledger.pages.last().number} was automatically created and saved")
         }
+    }
+
+    override fun eraseEntry(ledgerName: String, entryId: String, userId: String) {
+        val ledger = getLedger(ledgerName) ?: return logger.warn("Ledger $ledgerName not found")
+        ledger.eraseEntryContent(entryId, userId)
+    }
+
+    override fun restoreEntry(
+        ledgerName: String,
+        entryId: String,
+        userId: String,
+        originalContent: String
+    ) {
+        val ledger = getLedger(ledgerName) ?: return logger.warn("Ledger $ledgerName not found")
+        ledger.restoreEntryContent(entryId, userId, originalContent)
     }
 
     override fun logSystemEvent(ledgerName: String, declaringService: String, userId: String?, details: String) {

@@ -45,7 +45,7 @@ enum class ErrorType {
     PREVIOUS_HASH_MISMATCH
 }
 
-@Service
+//@Service
 class LedgerWarden(
     private val repo: LedgerRepo
 ) {

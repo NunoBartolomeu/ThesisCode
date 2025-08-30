@@ -19,7 +19,7 @@ data class Page(
     val previousHash: String?,
     val merkleRoot: String,
     val hash: String,
-    val entries: List<Entry>,
+    val entries: MutableList<Entry>,
 ) {
     fun toPageSummary() = PageSummary(
         ledgerName = ledgerName,
@@ -30,6 +30,18 @@ data class Page(
         entryCount = entries.count(),
         entryIds = entries.map { it.id }
     )
+
+    fun updateEntryForDeletionOrRestoration(updatedEntry: Entry) {
+        val index = entries.indexOfFirst { it.id == updatedEntry.id }
+        if (index == -1) throw Exception("Entry not found")
+        val currentEntry = entries[index]
+        if (updatedEntry.isDeleted() && currentEntry.isDeleted() ||
+            !updatedEntry.isDeleted() && !currentEntry.isDeleted()
+            ) {
+            throw Exception("Entries can only be updated for deletion and restoration")
+        }
+        entries[index] = updatedEntry
+    }
 }
 
 class PageBuilder() {
@@ -137,7 +149,7 @@ class PageBuilder() {
             timestamp = pageTimestamp,
             previousHash = previousHash,
             merkleRoot = merkleRoot,
-            entries = entries.toList(),
+            entries = entries,
             hash = hash
         )
     }

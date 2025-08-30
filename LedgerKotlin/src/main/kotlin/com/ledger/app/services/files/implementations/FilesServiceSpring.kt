@@ -25,7 +25,9 @@ class FilesServiceSpring(
     private val logger = ColorLogger("FilesService", RGB.BLUE_SKY, LogLevel.DEBUG)
 
     init {
-        ledgerService.createLedger(FILES_LEDGER, 2, HashProvider.getDefaultAlgorithm())
+        if (ledgerService.getLedger(FILES_LEDGER) == null) {
+            ledgerService.createLedger(FILES_LEDGER, 2, HashProvider.getDefaultAlgorithm())
+        }
     }
 
     override fun initiateLedgerForUser(userId: String) {

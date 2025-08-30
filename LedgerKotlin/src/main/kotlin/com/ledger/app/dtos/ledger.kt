@@ -5,9 +5,9 @@ data class LedgerDTO(
     val name: String,
     val entriesPerPage: Int,
     val hashAlgorithm: String,
+    val pages: List<PageSummaryDTO>,
+    val unverifiedEntries: List<PageEntryDTO>,
     val verifiedEntries: List<PageEntryDTO>,
-    val nonVerifiedEntries: List<PageEntryDTO>,
-    val pages: List<PageSummaryDTO>
 )
 data class PageSummaryDTO(
     val number: Int,
@@ -40,7 +40,7 @@ data class EntryDTO(
     val relatedEntryIds: List<String>,
     val keywords: List<String>,
     val ledgerName: String,
-    val pageNumber: Int?, // null if in holding
+    val pageNumber: Int?,
     val hash: String
 )
 

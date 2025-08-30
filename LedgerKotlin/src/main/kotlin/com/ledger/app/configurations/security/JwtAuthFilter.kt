@@ -1,4 +1,4 @@
-package com.ledger.app.components.security
+package com.ledger.app.configurations.security
 
 import com.ledger.app.repositories.auth.AuthRepo
 import com.ledger.app.services.auth.implementations.AuthServiceSpring

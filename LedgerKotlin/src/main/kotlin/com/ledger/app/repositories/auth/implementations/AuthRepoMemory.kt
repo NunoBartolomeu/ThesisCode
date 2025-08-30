@@ -5,7 +5,7 @@ import com.ledger.app.repositories.auth.AuthRepo
 import org.springframework.stereotype.Repository
 import java.util.concurrent.ConcurrentHashMap
 
-@Repository
+//@Repository
 class AuthRepoMemory: AuthRepo {
     private val users = ConcurrentHashMap<String, User>()
     private val emails = ConcurrentHashMap<String, String>() // email -> userId

@@ -5,6 +5,7 @@ import com.ledger.app.models.ledger.Entry
 import com.ledger.app.models.ledger.Ledger
 import com.ledger.app.models.ledger.Page
 import com.ledger.app.models.ledger.PageSummary
+import com.ledger.app.services.auth.AuthService
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
@@ -16,7 +17,8 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/ledger")
 class LedgerController(
-    private val ledgerService: LedgerService
+    private val ledgerService: LedgerService,
+    private val authService: AuthService
 ) {
     private val logger = ColorLogger("LedgerController", RGB.RED_DARK, LogLevel.DEBUG)
 
@@ -152,8 +154,8 @@ class LedgerController(
     }
 
     private fun resolveName(id: String): String {
-        // TODO Replace with real name resolution
-        return id
+        val info = authService.getUserInfo(id)?: throw IllegalArgumentException("User not found")
+        return info.fullName
     }
 
     private fun Ledger.toLedgerDTO(userId: String): LedgerDTO {
@@ -163,7 +165,7 @@ class LedgerController(
             entriesPerPage = config.entriesPerPage,
             hashAlgorithm = config.hashAlgorithm,
             verifiedEntries = verifiedEntries.map {it.toPageEntryDTO(userId) },
-            nonVerifiedEntries = holdingArea.map { it.toPageEntryDTO(userId) },
+            unverifiedEntries = holdingArea.map { it.toPageEntryDTO(userId) },
             pages = pages.map { it.toPageSummary().toDTO() }
         )
     }

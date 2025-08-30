@@ -33,7 +33,7 @@ enum class TamperType {
     SIGNATURE_PUBLIC_KEY
 }
 
-@Service
+//@Service
 class LedgerTamperingService(
     private val repo: LedgerRepo
 ) {

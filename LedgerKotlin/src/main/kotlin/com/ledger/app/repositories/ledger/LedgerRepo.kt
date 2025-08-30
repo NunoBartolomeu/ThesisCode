@@ -12,7 +12,7 @@ interface LedgerRepo {
 
     fun createPage(page: Page)
     fun readPage(ledgerName: String, pageNumber: Int): Page?
-    fun updatePageForTamperEvidenceTesting(page: Page) // THIS IS TO TEST THE WARDEN, REMOVE IN ACTUAL PROJECT
+    fun updatePageForTamperEvidenceTesting(page: Page) //TODO: THIS IS TO TEST THE WARDEN, REMOVE IN ACTUAL PROJECT
 
     fun createEntry(entry: Entry)
     fun readEntry(entryId: String): Entry?

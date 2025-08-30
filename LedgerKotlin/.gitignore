@@ -28,6 +28,7 @@ hs_err_pid*
 *.iml
 *.ipr
 out/
+system_keys/
 
 # Eclipse
 .apt_generated

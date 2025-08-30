@@ -159,8 +159,6 @@ class FileController(private val filesService: FilesService) {
     }
 
     private fun getUserId(user: Any): String {
-        // Assuming your user object has an id or userId property
-        // Adjust this based on your actual user entity structure
         return when {
             user.javaClass.getDeclaredField("id") != null -> {
                 val field = user.javaClass.getDeclaredField("id")
@@ -173,7 +171,6 @@ class FileController(private val filesService: FilesService) {
                 field.get(user).toString()
             }
             else -> {
-                // Fallback to email or toString if no id field found
                 user.toString()
             }
         }

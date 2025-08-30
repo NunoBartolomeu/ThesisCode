@@ -181,4 +181,39 @@ class LedgerTest {
         assertEquals(entry, ledger.getEntryById(entry.id))
         assertNull(ledger.getEntryById("random-id"))
     }
+
+    @Test
+    @DisplayName("erase entry content produces correct deleted format and hashes")
+    fun eraseEntryContentTest() {
+        val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
+        val signed = ledger.addSignature(entry.id, signEntry(entry, keyPair1, senderId))
+
+        val erased = ledger.eraseEntryContent(signed.id)
+
+        assertTrue(erased.isDeleted())
+        assertTrue(erased.content.startsWith("DELETED_ENTRY"))
+
+        val storedContentHash = Regex("content_hash:([^\n]+)").find(erased.content)?.groupValues?.get(1)
+        val storedEntryHash = Regex("entry_hash:([^\n]+)").find(erased.content)?.groupValues?.get(1)
+
+        val expectedContentHash = HashProvider.toHashString(HashProvider.hash(content, hashAlgorithm))
+        assertEquals(expectedContentHash, storedContentHash)
+        assertEquals(signed.hash, storedEntryHash)
+    }
+
+    @Test
+    @DisplayName("restore entry content works and validates hash")
+    fun restoreEntryContentTest() {
+        val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
+        val signed = ledger.addSignature(entry.id, signEntry(entry, keyPair1, senderId))
+        val erased = ledger.eraseEntryContent(signed.id)
+
+        val restored = ledger.restoreEntryContent(erased.id, content)
+        assertEquals(content, restored.content)
+        assertEquals(signed.hash, restored.hash)
+
+        assertFailsWith<Exception> {
+            ledger.restoreEntryContent(erased.id, "Tampered content")
+        }
+    }
 }

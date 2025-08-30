@@ -9,6 +9,8 @@ interface LedgerService {
     fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String)
     fun createEntry(ledgerName: String, content: String, senders: List<String>, recipients: List<String>, relatedEntries: List<String> = emptyList(), keywords: List<String> = emptyList()): Entry?
     fun signEntry(entryId: String, signerId: String, signature: String, publicKey: String, signingAlgorithm: String)
+    fun eraseEntry(ledgerName: String, entryId: String, userId: String)
+    fun restoreEntry(ledgerName: String, entryId: String, userId: String, originalContent: String)
     fun logSystemEvent(ledgerName: String, declaringService: String, userId: String?, details: String)
 
     fun addKeywords(entryId: String, keywords: List<String>)

@@ -12,7 +12,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
-@Repository
+//@Repository
 class LedgerRepoMemory : LedgerRepo {
     private val ledgers = ConcurrentHashMap<String, Ledger>()
     private val pages = ConcurrentHashMap<String, Page>()
@@ -48,7 +48,7 @@ class LedgerRepoMemory : LedgerRepo {
                         .filter { it.ledgerName == ledgerName && it.pageNum == page.number }
                         .sortedBy { it.timestamp }
 
-                    page.copy(entries = pageEntries)
+                    page.copy(entries = pageEntries.toMutableList())
                 }
 
             baseLedger.copy(pages = CopyOnWriteArrayList(ledgerPages))
@@ -79,7 +79,7 @@ class LedgerRepoMemory : LedgerRepo {
                 .filter { it.ledgerName == ledgerName && it.pageNum == pageNumber }
                 .sortedBy { it.timestamp }
 
-            basePage.copy(entries = pageEntries)
+            basePage.copy(entries = pageEntries.toMutableList())
         }
     }
 
