@@ -71,7 +71,7 @@ export default function LedgerDetailsPage() {
     );
   };
 
-  const getNonVerifiedEntryIcon = () => {
+  const getUnverifiedEntryIcon = () => {
     return (
       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--warning)' }}>
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -166,13 +166,12 @@ export default function LedgerDetailsPage() {
                     <h3 className="text-lg font-semibold border-b pb-2 mb-3" style={{ color: 'var(--text)' }}>⚙️ Configuration</h3>
                     <p style={{ color: 'var(--text-muted)' }}>Entries per page: <span style={{ color: 'var(--text)' }}>{state.data.entriesPerPage}</span></p>
                     <p style={{ color: 'var(--text-muted)' }}>Hash algorithm: <span style={{ color: 'var(--text)' }}>{state.data.hashAlgorithm}</span></p>
-                    <p style={{ color: 'var(--text-muted)' }}>Crypto algorithm: <span style={{ color: 'var(--text)' }}>{state.data.cryptoAlgorithm}</span></p>
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold border-b pb-2 mb-3" style={{ color: 'var(--text)' }}>📊 Statistics</h3>
                     <p style={{ color: 'var(--text-muted)' }}>Total pages: <span style={{ color: 'var(--text)' }}>{state.data.pages.length}</span></p>
                     <p style={{ color: 'var(--text-muted)' }}>Verified entries: <span style={{ color: 'var(--text)' }}>{state.data.verifiedEntries.length}</span></p>
-                    <p style={{ color: 'var(--text-muted)' }}>Non-verified entries: <span style={{ color: 'var(--text)' }}>{state.data.nonVerifiedEntries.length}</span></p>
+                    <p style={{ color: 'var(--text-muted)' }}>Unverified entries: <span style={{ color: 'var(--text)' }}>{state.data.unverifiedEntries.length}</span></p>
                   </div>
                 </div>
 
@@ -184,10 +183,10 @@ export default function LedgerDetailsPage() {
               </div>
 
               {renderEntrySection(
-                state.data.nonVerifiedEntries,
-                "⏳ Non-Verified Entries",
-                getNonVerifiedEntryIcon,
-                "No non-verified entries"
+                state.data.unverifiedEntries,
+                "⏳ Unerified Entries",
+                getUnverifiedEntryIcon,
+                "No unverified entries"
               )}
 
               {renderEntrySection(

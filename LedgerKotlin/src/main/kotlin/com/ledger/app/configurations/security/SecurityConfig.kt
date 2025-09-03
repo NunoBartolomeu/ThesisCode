@@ -17,7 +17,7 @@ class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter
 ) {
 
-    private val logger = ColorLogger("SecurityConfig", RGB.PINK_HOT, LogLevel.DEBUG)
+    private val logger = ColorLogger("SecurityConfig", RGB.PINK_LIGHT, LogLevel.DEBUG)
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {

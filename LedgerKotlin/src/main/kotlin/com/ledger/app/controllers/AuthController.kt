@@ -3,19 +3,25 @@ package com.ledger.app.controllers
 import com.ledger.app.dtos.*
 import com.ledger.app.services.auth.AuthService
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
+import jakarta.annotation.PostConstruct
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.HttpRequest
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/auth")
 class AuthController(private val authService: AuthService) {
 
-    private val logger = ColorLogger("AuthController", RGB.GREEN_DARK, LogLevel.DEBUG)
+    @Value("\${app.logLevel:INFO}")
+    private lateinit var logLevelStr: String
+    private lateinit var logger: ColorLogger
+
+    @PostConstruct
+    fun initialize() {
+        logger = ColorLogger("AuthController", RGB.GREEN_DARK, logLevelStr)
+    }
 
     @PostMapping("/register")
     fun register(@RequestBody request: RegisterRequest): ResponseEntity<SimpleAuthResult> {
@@ -74,5 +80,12 @@ class AuthController(private val authService: AuthService) {
         logger.info("Logout request")
         authService.logoutUser(request.token)
         return ResponseEntity.ok("Logged out successfully")
+    }
+
+    @GetMapping("/users")
+    fun getAllUsers(@RequestBody request: HttpRequest): ResponseEntity<List<SimpleUserNameAndEmail>> {
+        logger.info("Get All Users request")
+        val users = authService.getAllUsers()
+        return ResponseEntity.ok(users.map { SimpleUserNameAndEmail(it.email, it.fullName) })
     }
 }

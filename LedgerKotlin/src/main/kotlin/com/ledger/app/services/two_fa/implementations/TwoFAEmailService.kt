@@ -4,7 +4,9 @@ import com.ledger.app.services.two_fa.TwoFAService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
+import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
@@ -20,7 +22,14 @@ class TwoFAEmailService (
         private const val EXPIRATION_TIME_MS = 5 * 60 * 1000
     }
 
-    private val logger = ColorLogger("2FAService", RGB.CYAN_SOFT, LogLevel.DEBUG)
+    @Value("\${app.logLevel}")
+    private lateinit var logLevelStr: String
+    private lateinit var logger: ColorLogger
+
+    @PostConstruct
+    fun initialize() {
+        logger = ColorLogger("2FAService", RGB.CYAN, logLevelStr)
+    }
 
     private val codes = ConcurrentHashMap<String, VerificationCode>()
 
@@ -71,12 +80,17 @@ class TwoFAEmailService (
         val entry = codes[email] ?: return false
         val now = System.currentTimeMillis()
 
-        return if (now - entry.timestamp <= EXPIRATION_TIME_MS && entry.code == code && entry.service == service) {
-            logger.debug("Code verified")
-            codes.remove(email)
-            true
+        return if (now - entry.timestamp <= EXPIRATION_TIME_MS) {
+            if (entry.code == code && entry.service == service) {
+                logger.debug("Code verified")
+                codes.remove(email)
+                true
+            } else {
+                logger.debug("Code is incorrect")
+                false
+            }
         } else {
-            logger.debug("Code is expired or incorrect")
+            logger.debug("Code is expired")
             codes.remove(email)
             false
         }

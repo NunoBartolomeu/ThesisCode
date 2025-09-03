@@ -246,12 +246,28 @@ export default function EntryDetailsPage() {
                       <h3 className="text-lg font-semibold mb-3" style={{ color: 'var(--text)' }}>✍️ Signatures</h3>
                       <div className="space-y-3">
                         {state.data.signatures.map((sig, idx) => (
-                          <div key={idx} className="p-3 rounded border" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-light)' }}>
-                            <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>{sig.participant}</p>
-                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Email: {sig.email}</p>
-                            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)', wordBreak: 'break-all' }}>
-                              Signature: {sig.signature.substring(0, 50)}...
-                            </p>
+                          <div key={idx} className="p-4 rounded border" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-light)' }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <p className="font-medium text-sm mb-1" style={{ color: 'var(--text)' }}>{sig.participant}</p>
+                                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Email: {sig.email}</p>
+                                <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Algorithm: <span style={{ color: 'var(--text)' }}>{sig.algorithm}</span></p>
+                              </div>
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Public Key:</p>
+                                  <p className="text-xs font-mono bg-gray-100 p-2 rounded" style={{ color: 'var(--text)', wordBreak: 'break-all', backgroundColor: 'var(--bg)', border: '1px solid var(--border)' }}>
+                                    {sig.publicKey}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Signature:</p>
+                                  <p className="text-xs font-mono bg-gray-100 p-2 rounded" style={{ color: 'var(--text)', wordBreak: 'break-all', backgroundColor: 'var(--bg)', border: '1px solid var(--border)' }}>
+                                    {sig.signature}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>

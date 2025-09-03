@@ -40,7 +40,7 @@ class EmailSender {
                 setFrom(InternetAddress(username))
                 setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail))
                 setSubject(subject)
-                setText(body)
+                setContent(body, "text/html; charset=utf-8")
             }
 
             Transport.send(message)

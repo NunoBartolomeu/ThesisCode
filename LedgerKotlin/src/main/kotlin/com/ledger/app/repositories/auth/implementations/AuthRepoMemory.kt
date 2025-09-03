@@ -20,6 +20,8 @@ class AuthRepoMemory: AuthRepo {
 
     override fun getUserByEmail(email: String): User? = emails[email]?.let { users[it] }
 
+    override fun getAllUsers(): List<User> = users.entries.map { it.value }
+
     override fun updateUser(user: User): Boolean = saveUser(user)
 
     override fun verifyEmail(userId: String): Boolean {

@@ -15,7 +15,7 @@ class RBACServiceSpring(
 ): RBACService {
     private val RBAC_SYSTEM = "rbac"
     private val RBAC_LEDGER = "rbac_ledger"
-    private val logger = ColorLogger("RbacService", RGB.ORANGE_SOFT, LogLevel.DEBUG)
+    private val logger = ColorLogger("RbacService", RGB.ORANGE_DARK, LogLevel.DEBUG)
 
     override fun hasPermission(userId: String, resource: String, action: String): Boolean {
         val direct = repo.getUserPermissions(userId).any { it.resource == resource && it.action == action }

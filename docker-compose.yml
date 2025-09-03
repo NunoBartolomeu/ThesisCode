@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16
+    container_name: ledger_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ledger_db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  server:
+    build: ./LedgerKotlin
+    container_name: ledger_server
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ledger_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    volumes:
+      - ./LedgerKotlin/system_pki:/app/system_pki
+      - ./LedgerKotlin/users_pki:/app/users_pki
+      - ./LedgerKotlin/uploads:/app/uploads
+    ports:
+      - "8080:8080"
+
+  client:
+    build: ./Cliente/ledger_client
+    container_name: ledger_client
+    depends_on:
+      - server
+    ports:
+      - "3000:3000"
+
+volumes:
+  db_data:
+  system_pki:
+  users_pki:
+  uploads:

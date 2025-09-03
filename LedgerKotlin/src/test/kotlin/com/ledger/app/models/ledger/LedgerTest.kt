@@ -188,7 +188,7 @@ class LedgerTest {
         val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
         val signed = ledger.addSignature(entry.id, signEntry(entry, keyPair1, senderId))
 
-        val erased = ledger.eraseEntryContent(signed.id)
+        val erased = ledger.eraseEntryContent(signed.id, senderId)
 
         assertTrue(erased.isDeleted())
         assertTrue(erased.content.startsWith("DELETED_ENTRY"))
@@ -206,14 +206,14 @@ class LedgerTest {
     fun restoreEntryContentTest() {
         val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
         val signed = ledger.addSignature(entry.id, signEntry(entry, keyPair1, senderId))
-        val erased = ledger.eraseEntryContent(signed.id)
+        val erased = ledger.eraseEntryContent(entry.id, senderId)
 
-        val restored = ledger.restoreEntryContent(erased.id, content)
+        val restored = ledger.restoreEntryContent(entry.id, senderId, content)
         assertEquals(content, restored.content)
         assertEquals(signed.hash, restored.hash)
 
         assertFailsWith<Exception> {
-            ledger.restoreEntryContent(erased.id, "Tampered content")
+            ledger.restoreEntryContent(erased.id, senderId, "Tampered content")
         }
     }
 }

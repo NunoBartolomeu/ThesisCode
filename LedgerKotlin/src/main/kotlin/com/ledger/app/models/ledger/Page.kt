@@ -2,16 +2,6 @@ package com.ledger.app.models.ledger
 
 import com.ledger.app.utils.hash.HashProvider
 
-data class PageSummary(
-    val ledgerName: String,
-    val number: Int,
-    val timestamp: Long,
-    val previousHash: String?,
-    val merkleRoot: String,
-    val entryCount: Int,
-    val entryIds: List<String>
-)
-
 data class Page(
     val ledgerName: String,
     val number: Int,
@@ -21,16 +11,6 @@ data class Page(
     val hash: String,
     val entries: MutableList<Entry>,
 ) {
-    fun toPageSummary() = PageSummary(
-        ledgerName = ledgerName,
-        number = number,
-        timestamp = timestamp,
-        previousHash = previousHash,
-        merkleRoot = merkleRoot,
-        entryCount = entries.count(),
-        entryIds = entries.map { it.id }
-    )
-
     fun updateEntryForDeletionOrRestoration(updatedEntry: Entry) {
         val index = entries.indexOfFirst { it.id == updatedEntry.id }
         if (index == -1) throw Exception("Entry not found")

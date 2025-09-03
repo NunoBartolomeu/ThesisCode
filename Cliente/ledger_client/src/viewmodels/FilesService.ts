@@ -1,7 +1,6 @@
-import { FileDetailsDto, FileListResponse, FileInfoDTO, DeleteFileResponse, FileUploadRequest } from "@/dto/files_dto";
+import { FileMetadataDto, FileListResponse, FileInfoDTO, DeleteFileResponse, FileUploadRequest, FileUploadResponse } from "@/dto/files_dto";
 import { Fetcher, ApiResponse } from "./Fetcher";
-import { FileListItem, FileDetailsData} from '@/types/files';
-
+import { FileListItem, FileMetadataData} from '@/types/files';
 
 export class FilesService {
   private fetcher: Fetcher;
@@ -10,11 +9,19 @@ export class FilesService {
     this.fetcher = new Fetcher(baseUrl);
   }
 
-  async uploadFile(file: File): Promise<ApiResponse<void>> {
+  async uploadFile(file: File, senders: string[], receivers: string[]): Promise<ApiResponse<FileUploadResponse>> {
     const formData = new FormData();
     formData.append('file', file);
+    
+    // Add senders and receivers if provided
+    if (senders && senders.length > 0) {
+      senders.forEach(sender => formData.append('senders', sender));
+    }
+    if (receivers && receivers.length > 0) {
+      receivers.forEach(receiver => formData.append('receivers', receiver));
+    }
 
-    return this.fetcher.request<void>('/file/upload', {
+    return this.fetcher.request<FileUploadResponse>('/file/upload', {
       method: 'POST',
       body: formData,
       requireAuth: true,
@@ -29,16 +36,18 @@ export class FilesService {
     });
 
     if (response.success && response.data) {
-      const files = response.data.files.map(file => this.mapToFileListItem(file));
+      const files = response.data.files
+        .filter(file => !file.wasDeleted) // Filter out deleted files
+        .map(file => this.mapToFileListItem(file));
       return { ...response, data: files };
     }
 
     return { ...response, data: null };
   }
 
-  async getFileDetails(fileName: string): Promise<ApiResponse<FileDetailsData>> {
-    const response = await this.fetcher.request<FileDetailsDto>(
-      `/file/details/${encodeURIComponent(fileName)}`,
+  async getFileMetadata(fileId: string): Promise<ApiResponse<FileMetadataData>> {
+    const response = await this.fetcher.request<FileMetadataDto>(
+      `/file/metadata/${encodeURIComponent(fileId)}`,
       {
         method: 'GET',
         requireAuth: true,
@@ -46,22 +55,22 @@ export class FilesService {
     );
 
     if (response.success && response.data) {
-      const details = this.transformToFileDetailsData(response.data);
-      return { ...response, data: details };
+      const metadata = this.transformToFileMetadataData(response.data);
+      return { ...response, data: metadata };
     }
 
     return { ...response, data: null };
   }
 
-  async deleteFile(fileName: string): Promise<ApiResponse<void>> {
-    return this.fetcher.request<void>(`/file/delete/${encodeURIComponent(fileName)}`, {
+  async deleteFile(fileId: string): Promise<ApiResponse<void>> {
+    return this.fetcher.request<void>(`/file/delete/${encodeURIComponent(fileId)}`, {
       method: 'DELETE',
       requireAuth: true,
     });
   }
 
-  async downloadFile(fileName: string): Promise<void> {
-    const downloadUrl = `/file/download/${encodeURIComponent(fileName)}`;
+  async downloadFile(fileId: string): Promise<void> {
+    const downloadUrl = `/file/download/${encodeURIComponent(fileId)}`;
 
     const response = await this.fetcher.request<Blob>(downloadUrl, {
       method: 'GET',
@@ -72,6 +81,10 @@ export class FilesService {
     if (!response.success || !response.data) {
       throw new Error(`Failed to download file`);
     }
+
+    // Get the filename from the metadata first for proper download
+    const metadataResponse = await this.getFileMetadata(fileId);
+    const fileName = metadataResponse.data?.name || `download-${fileId}`;
 
     const blob = response.data;
     const url = window.URL.createObjectURL(blob);
@@ -85,37 +98,37 @@ export class FilesService {
     document.body.removeChild(a);
   }
 
-
-  private mapToFileListItem(file: { name: string; size: number; lastModified: number }): FileListItem {
-    const lastModified = new Date(file.lastModified);
+  private mapToFileListItem(file: FileInfoDTO): FileListItem {
     const fileExtension = this.getFileExtension(file.name);
     const fileType = this.getFileTypeFromExtension(fileExtension);
 
     return {
+      id: file.id, // Now include the file ID
       name: file.name,
       size: file.size,
-      lastModified,
       formattedSize: this.formatBytes(file.size),
-      formattedDate: this.formatDate(lastModified),
       fileType,
       icon: this.getFileIcon(fileType),
     };
   }
 
-  private transformToFileDetailsData(dto: FileDetailsDto): FileDetailsData {
-    const lastModified = new Date(dto.uploadedAt);
-    const fileExtension = dto.actualFileName.split('.').pop()?.toLowerCase() || '';
+  private transformToFileMetadataData(dto: FileMetadataDto): FileMetadataData {
+    const fileExtension = this.getFileExtension(dto.originalFileName);
     const fileType = this.getFileTypeFromExtension(fileExtension);
 
     return {
+      id: dto.id,
       name: dto.originalFileName,
       size: dto.fileSize,
-      lastModified,
       formattedSize: this.formatBytes(dto.fileSize),
-      formattedDate: this.formatDate(lastModified),
       fileType,
       icon: this.getFileIcon(fileType),
-      downloadUrl: `/file/download/${encodeURIComponent(dto.actualFileName)}`,
+      contentType: dto.contentType,
+      uploaderId: dto.uploaderId,
+      senders: dto.senders,
+      receivers: dto.receivers,
+      ledgerEntries: dto.ledgerEntries,
+      downloadUrl: `/file/download/${encodeURIComponent(dto.id)}`, // Use ID for download
     };
   }
 

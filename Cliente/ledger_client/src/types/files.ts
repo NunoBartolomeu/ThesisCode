@@ -10,23 +10,25 @@ export interface FileItem {
 }
 
 export interface FileListItem {
+  id: string;
   name: string;
   size: number;
-  lastModified: Date;
   formattedSize: string;
-  formattedDate: string;
   fileType: string;
   icon: string;
 }
 
-export interface FileDetailsData {
+export interface FileMetadataData {
+  id: string;
   name: string;
   size: number;
-  lastModified: Date;
   formattedSize: string;
-  formattedDate: string;
   fileType: string;
   icon: string;
+  contentType?: string;
+  uploaderId: string;
+  senders: string[];
+  receivers: string[];
+  ledgerEntries: string[]; // ⚠️ Consider: Internal ledger references
   downloadUrl: string;
 }
-

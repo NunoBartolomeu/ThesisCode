@@ -12,41 +12,41 @@ data class RGB(val r: Int, val g: Int, val b: Int) {
     }
 
     companion object {
-        val RED_BRIGHT = RGB(255, 0, 0)
-        val RED_DARK = RGB(156, 80, 80)
-        val RED_SOFT = RGB(255, 99, 71)
+        val RED_DARK = RGB(150, 0, 0)
+        val RED = RGB(200, 0, 0)
+        val RED_LIGHT = RGB(250, 0, 0)
 
-        val GREEN_LIME = RGB(50, 205, 50)
-        val GREEN_NEON = RGB(57, 255, 20)
-        val GREEN_DARK = RGB(80, 156, 80)
+        val GREEN_DARK = RGB(0, 150, 0)
+        val GREEN = RGB(0, 200, 0)
+        val GREEN_LIGHT = RGB(0, 250, 0)
 
-        val BLUE_ELECTRIC = RGB(0, 120, 255)
-        val BLUE_SKY = RGB(135, 206, 235)
-        val BLUE_DARK = RGB(80, 80, 156)
+        val BLUE_DARK = RGB(0, 0, 150)
+        val BLUE = RGB(0, 0, 200)
+        val BLUE_LIGHT = RGB(0, 0, 250)
 
-        val YELLOW_BRIGHT = RGB(255, 255, 0)
-        val YELLOW_GOLD = RGB(255, 215, 0)
-        val YELLOW_SOFT = RGB(255, 239, 184)
+        val CYAN_DARK = RGB(0, 150, 150)
+        val CYAN = RGB(0, 200, 200)
+        val CYAN_LIGHT = RGB(0, 250, 250)
 
-        val ORANGE_BRIGHT = RGB(255, 165, 0)
-        val ORANGE_DARK = RGB(255, 140, 0)
-        val ORANGE_SOFT = RGB(255, 200, 130)
+        val YELLOW_DARK = RGB(150, 150, 0)
+        val YELLOW = RGB(200, 200, 0)
+        val YELLOW_LIGHT = RGB(250, 250, 0)
 
-        val PURPLE_VIVID = RGB(148, 0, 211)
-        val PURPLE_SOFT = RGB(180, 140, 255)
-        val PURPLE_DARK = RGB(75, 0, 130)
+        val ORANGE_DARK = RGB(150, 80, 0)
+        val ORANGE = RGB(200, 130, 0)
+        val ORANGE_LIGHT = RGB(250, 180, 0)
 
-        val PINK_HOT = RGB(255, 20, 147)
-        val PINK_SOFT = RGB(255, 182, 193)
-        val PINK_SALMON = RGB(255, 160, 122)
+        val PURPLE_DARK = RGB(100, 0, 150)
+        val PURPLE = RGB(150, 0, 200)
+        val PURPLE_LIGHT = RGB(200, 100, 250)
 
-        val CYAN_BRIGHT = RGB(0, 255, 255)
-        val CYAN_SOFT = RGB(175, 238, 238)
-        val CYAN_DARK = RGB(0, 139, 139)
+        val PINK_DARK = RGB(150, 0, 100)
+        val PINK = RGB(200, 0, 150)
+        val PINK_LIGHT = RGB(250, 100, 200)
 
-        val GRAY_LIGHT = RGB(211, 211, 211)
-        val GRAY_MEDIUM = RGB(128, 128, 128)
         val GRAY_DARK = RGB(64, 64, 64)
+        val GRAY = RGB(128, 128, 128)
+        val GRAY_LIGHT = RGB(192, 192, 192)
     }
 }
 
@@ -60,14 +60,12 @@ enum class LogLevel(val priority: Int) {
 class ColorLogger(
     private val componentName: String,
     private val color: RGB,
-    private var minLevel: LogLevel = LogLevel.INFO
+    private var minLevel: LogLevel
 ) {
-    private val timeFmt = DateTimeFormatter.ofPattern("HH:mm:ss")
+    constructor(componentName: String, color: RGB, minLevelStr: String) :
+            this(componentName, color, LogLevel.valueOf(minLevelStr.uppercase()))
 
-    /** Change the minimum level at runtime */
-    fun setLevel(level: LogLevel) {
-        minLevel = level
-    }
+    private val timeFmt = DateTimeFormatter.ofPattern("HH:mm:ss")
 
     private fun ansiColor(): String =
         "\u001B[38;2;${color.r};${color.g};${color.b}m"

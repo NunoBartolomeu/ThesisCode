@@ -41,6 +41,7 @@ export default function PageDetailsPage() {
 
       if (response.success && response.data) {
         setState({ isLoading: false, error: null, data: response.data });
+        console.log('Raw timestamp:', response.data.timestamp);
       } else {
         setState({ isLoading: false, error: 'Failed to fetch page details', data: null });
       }
@@ -110,11 +111,12 @@ export default function PageDetailsPage() {
                     <h3 className="text-lg font-semibold border-b pb-2 mb-3" style={{ color: 'var(--text)' }}>📊 Page Info</h3>
                     <p style={{ color: 'var(--text-muted)' }}>Page number: <span style={{ color: 'var(--text)' }}>{state.data.number}</span></p>
                     <p style={{ color: 'var(--text-muted)' }}>Entry count: <span style={{ color: 'var(--text)' }}>{state.data.entryCount}</span></p>
-                    <p style={{ color: 'var(--text-muted)' }}>Timestamp: <span style={{ color: 'var(--text)' }}>{new Date(state.data.timestamp * 1000).toLocaleString()}</span></p>
+                    <p style={{ color: 'var(--text-muted)' }}>Timestamp: <span style={{ color: 'var(--text)' }}>{new Date(state.data.timestamp).toLocaleString()}</span></p>
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold border-b pb-2 mb-3" style={{ color: 'var(--text)' }}>🔗 Hashes</h3>
                     <p style={{ color: 'var(--text-muted)' }}>Page hash: <span style={{ color: 'var(--text)', fontSize: '0.8rem', wordBreak: 'break-all' }}>{state.data.hash}</span></p>
+                    <p style={{ color: 'var(--text-muted)' }}>Merkle root: <span style={{ color: 'var(--text)', fontSize: '0.8rem', wordBreak: 'break-all' }}>{state.data.merkleRoot}</span></p>
                     {state.data.previousHash && (
                       <p style={{ color: 'var(--text-muted)' }}>Previous hash: <span style={{ color: 'var(--text)', fontSize: '0.8rem', wordBreak: 'break-all' }}>{state.data.previousHash}</span></p>
                     )}

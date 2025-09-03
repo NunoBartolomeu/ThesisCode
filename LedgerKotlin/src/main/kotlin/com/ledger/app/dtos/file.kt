@@ -1,14 +1,18 @@
 package com.ledger.app.dtos
 
-data class FileDetailsDto(
+data class FileMetadataDto(
+    val id: String,
     val originalFileName: String,
     val actualFileName: String,
+    val filePath: String,
     val fileSize: Long,
     val contentType: String?,
     val uploadedAt: Long,
-    val lastAccessed: Long?,
-    val ownerFullName: String?,
-    val ownerEmail: String?
+    val uploaderId: String,
+    val senders: List<String>,
+    val receivers: List<String>,
+    val ledgerEntries: List<String>,
+    val wasDeleted: Boolean
 )
 
 data class FileListResponse(
@@ -16,8 +20,8 @@ data class FileListResponse(
 )
 
 data class FileInfoDTO(
+    val id: String,      // Added file ID
     val name: String,
     val size: Long,
-    val lastModified: Long
+    val wasDeleted: Boolean
 )
-

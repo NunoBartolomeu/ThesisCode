@@ -1,26 +1,30 @@
 package com.ledger.app.services.ledger.implementations
 
-import com.ledger.app.services.key_management.implementations.KeyManagementServiceLocal
+import com.ledger.app.models.ledger.*
 import com.ledger.app.repositories.ledger.LedgerRepo
 import com.ledger.app.services.ledger.LedgerService
-import com.ledger.app.models.ledger.Entry
-import com.ledger.app.models.ledger.Ledger
-import com.ledger.app.models.ledger.LedgerConfig
-import com.ledger.app.models.ledger.Page
-import com.ledger.app.models.ledger.PageSummary
+import com.ledger.app.services.pki.PublicKeyInfrastructureService
 import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
 import com.ledger.app.utils.signature.SignatureProvider
+import jakarta.annotation.PostConstruct
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
-import java.lang.IllegalArgumentException
 
 @Service
-class LedgerServiceSpring (
+class LedgerServiceSpring(
     private val repo: LedgerRepo,
-    private val sysKeyPairServiceLocal: KeyManagementServiceLocal
+    private val pkiService: PublicKeyInfrastructureService
 ) : LedgerService {
-    private val logger = ColorLogger("LedgerService", RGB.RED_BRIGHT, LogLevel.DEBUG)
+    @Value("\${app.logLevel:INFO}")
+    private lateinit var logLevelStr: String
+    private lateinit var logger: ColorLogger
+
+    @PostConstruct
+    fun initialize() {
+        logger = ColorLogger("LedgerService", RGB.RED, logLevelStr)
+    }
     private val activeLedgers = mutableMapOf<String, Ledger>()
 
     private fun loadLedger(ledgerName: String): Ledger? {
@@ -47,12 +51,19 @@ class LedgerServiceSpring (
     override fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String) {
         val config = LedgerConfig(name, linesPerPage, hashAlgorithm)
         val ledger = Ledger(config)
-        repo.createLedger(ledger) 
+        repo.createLedger(ledger)
         activeLedgers[name] = ledger
         logger.info("Ledger ${ledger.config.name} was created")
     }
 
-    override fun createEntry(ledgerName: String, content: String, senders: List<String>, recipients: List<String>, relatedEntries: List<String>, keywords: List<String>): Entry? {
+    override fun createEntry(
+        ledgerName: String,
+        content: String,
+        senders: List<String>,
+        recipients: List<String>,
+        relatedEntries: List<String>,
+        keywords: List<String>
+    ): Entry? {
         val ledger = getLedger(ledgerName) ?: return logger.warn("Ledger $ledgerName not found").let { null }
         val entry = ledger.createEntry(content, senders, recipients, relatedEntries, keywords)
         saveEntry(entry)
@@ -60,7 +71,13 @@ class LedgerServiceSpring (
         return entry
     }
 
-    override fun signEntry(entryId: String, signerId: String, signature: String, publicKey: String, signingAlgorithm: String) {
+    override fun signEntry(
+        entryId: String,
+        signerId: String,
+        signature: String,
+        publicKey: String,
+        signingAlgorithm: String
+    ) {
         val entry = repo.readEntry(entryId) ?: return logger.warn("Entry $entryId not found")
         val ledger = getLedger(entry.ledgerName) ?: return logger.warn("Ledger ${entry.ledgerName} not found")
 
@@ -72,7 +89,7 @@ class LedgerServiceSpring (
 
         repo.updateEntry(signedEntry)
         logger.info("Signature was added to entry ${entry.id}")
-        
+
         if (lastPageNumber != newLastPageNumber) {
             savePage(ledger.pages.last())
             logger.info("Page ${ledger.pages.last().number} was automatically created and saved")
@@ -95,17 +112,21 @@ class LedgerServiceSpring (
     }
 
     override fun logSystemEvent(ledgerName: String, declaringService: String, userId: String?, details: String) {
-        val entry = createEntry(ledgerName, details, listOf(declaringService), if (userId!=null)listOf(userId) else listOf())!!
-        val signature = SignatureProvider.sign(entry.hash, sysKeyPairServiceLocal.getSystemKeyPair().private, null)
+        val entry = createEntry(
+            ledgerName,
+            details,
+            listOf(declaringService),
+            if (userId != null) listOf(userId) else listOf()
+        )!!
+        val signature = SignatureProvider.sign(entry.hash, pkiService.getSystemKeyPair().private, null)
         signEntry(
             entryId = entry.id,
             signerId = declaringService,
             signature = SignatureProvider.keyOrSigToString(signature),
-            publicKey = SignatureProvider.keyOrSigToString(sysKeyPairServiceLocal.getSystemKeyPair().public.encoded),
+            publicKey = SignatureProvider.keyOrSigToString(pkiService.getSystemKeyPair().public.encoded),
             signingAlgorithm = SignatureProvider.getDefaultAlgorithm()
         )
     }
-
 
 
     override fun addKeywords(entryId: String, keywords: List<String>) {
@@ -151,7 +172,6 @@ class LedgerServiceSpring (
     }
 
 
-
     override fun getAvailableLedgers(): List<String> {
         logger.debug("Getting available ledgers")
         return repo.getAllLedgers().map { it.name }
@@ -165,13 +185,6 @@ class LedgerServiceSpring (
         val ledger = getLedger(ledgerName)
         return ledger?.pages[number]
     }
-
-    override fun getPageSummary(ledgerName: String, pageNumber: Int): PageSummary? {
-        val page = repo.readPage(ledgerName, pageNumber) ?: return null
-        return page.toPageSummary()
-    }
-
-
 
     override fun getEntry(entryId: String): Entry? {
         return repo.readEntry(entryId)
@@ -206,9 +219,9 @@ class LedgerServiceSpring (
         return ledger.holdingArea.filter { it.senders.contains(userId) && it.signatures.none { s -> s.signerId == userId } }
     }
 
-    override fun getInclusionProof(entryId: String): List<String> {
-        val entry = repo.readEntry(entryId) ?: return emptyList()
-        val ledger = getLedger(entry.ledgerName) ?: return emptyList()
-        return ledger.getInclusionProof(entry)
+    override fun getReceipt(userId: String, entryId: String): Receipt {
+        val entry = repo.readEntry(entryId) ?: throw IllegalArgumentException("No entry with id $entryId")
+        val ledger = getLedger(entry.ledgerName) ?: throw IllegalArgumentException("No ledger with name ${entry.ledgerName}")
+        return ledger.createReceipt(entryId, userId, pkiService.getSystemKeyPair())
     }
 }

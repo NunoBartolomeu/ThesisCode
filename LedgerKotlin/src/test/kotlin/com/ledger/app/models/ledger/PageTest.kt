@@ -55,28 +55,6 @@ class PageTest {
     }
 
     @Test
-    @DisplayName("Page summary matches page")
-    fun testPageSummary() {
-        val entries = listOf(buildEntry("1"), buildEntry("2"))
-        val page = PageBuilder(
-            ledgerName = "LedgerX",
-            number = 3,
-            timestamp = 3000L,
-            entries = entries,
-            hashAlgorithm = hashAlgorithm
-        ).build()
-
-        val summary = page.toPageSummary()
-        assertEquals(page.ledgerName, summary.ledgerName)
-        assertEquals(page.number, summary.number)
-        assertEquals(page.timestamp, summary.timestamp)
-        assertEquals(page.previousHash, summary.previousHash)
-        assertEquals(page.merkleRoot, summary.merkleRoot)
-        assertEquals(entries.size, summary.entryCount)
-        assertEquals(entries.map { it.id }, summary.entryIds)
-    }
-
-    @Test
     @DisplayName("Stable hash for identical pages")
     fun testStableHash() {
         val entries = listOf(buildEntry("1"))

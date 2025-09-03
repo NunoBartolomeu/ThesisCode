@@ -19,7 +19,7 @@ class JwtAuthenticationFilter(
     private val repo: AuthRepo
 ) : OncePerRequestFilter() {
 
-    private val logger = ColorLogger("JwtAuthenticationFilter", RGB.PINK_SALMON, LogLevel.DEBUG)
+    private val logger = ColorLogger("JwtAuthenticationFilter", RGB.PINK, LogLevel.DEBUG)
 
     override fun doFilterInternal(
         request: HttpServletRequest,

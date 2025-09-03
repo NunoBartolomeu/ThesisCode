@@ -11,7 +11,6 @@ class AuthRepoJDBC(
 ) : AuthRepo {
 
     init {
-        // Create table if it doesn't exist
         createTableIfNotExists()
     }
 
@@ -51,6 +50,7 @@ class AuthRepoJDBC(
                 }
             }
         } catch (e: Exception) {
+            println(e)
             false
         }
     }
@@ -76,6 +76,7 @@ class AuthRepoJDBC(
                 }
             }
         } catch (e: Exception) {
+            println(e)
             null
         }
     }
@@ -101,7 +102,36 @@ class AuthRepoJDBC(
                 }
             }
         } catch (e: Exception) {
+            println(e)
             null
+        }
+    }
+
+    override fun getAllUsers(): List<User> {
+        val sql = "SELECT * FROM users"
+        return try {
+            dataSource.connection.use { conn ->
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.executeQuery().use { rs ->
+                        val userIds = mutableListOf<User>()
+                        while (rs.next()) {
+                            userIds.add(
+                                User(
+                                    id = rs.getString("id"),
+                                    email = rs.getString("email"),
+                                    hashedPassword = rs.getString("hashed_password"),
+                                    fullName = rs.getString("full_name"),
+                                    emailVerified = rs.getBoolean("email_verified")
+                                )
+                            )
+                        }
+                        userIds
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println(e)
+            emptyList()
         }
     }
 
@@ -124,6 +154,7 @@ class AuthRepoJDBC(
                 }
             }
         } catch (e: Exception) {
+            println(e)
             false
         }
     }
@@ -139,6 +170,7 @@ class AuthRepoJDBC(
                 }
             }
         } catch (e: Exception) {
+            println(e)
             false
         }
     }

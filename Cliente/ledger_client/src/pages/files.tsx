@@ -40,7 +40,7 @@ export default function FilesPage() {
       setIsLoadingFiles(false);
     }
   };
-
+  
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -75,9 +75,14 @@ export default function FilesPage() {
     setError(null);
     
     try {
-      await filesService.uploadFile(file);
-      // Reload files after successful upload
-      await loadFiles();
+      const response = await filesService.uploadFile(file, [], []); //missing senders and receivers
+      if (response.success) {
+        console.log('File uploaded successfully:', response.data);
+        // Reload files after successful upload
+        await loadFiles();
+      } else {
+        setError(response.message || 'Failed to upload file');
+      }
     } catch (error) {
       console.error('Error uploading file:', error);
       setError(error instanceof Error ? error.message : 'Failed to upload file');
@@ -86,15 +91,20 @@ export default function FilesPage() {
     }
   };
 
-  const handleDeleteFile = async (fileName: string) => {
-    if (!confirm(`Are you sure you want to delete ${fileName}?`)) {
+  const handleDeleteFile = async (fileId: string) => {
+    const fileToDelete = files.find(f => f.id === fileId);
+    if (!fileToDelete || !confirm(`Are you sure you want to delete ${fileToDelete.name}?`)) {
       return;
     }
 
     try {
-      await filesService.deleteFile(fileName);
-      // Reload files after successful deletion
-      await loadFiles();
+      const response = await filesService.deleteFile(fileId);
+      if (response.success) {
+        // Reload files after successful deletion
+        await loadFiles();
+      } else {
+        setError(response.message || 'Failed to delete file');
+      }
     } catch (error) {
       console.error('Error deleting file:', error);
       setError(error instanceof Error ? error.message : 'Failed to delete file');
@@ -257,9 +267,11 @@ export default function FilesPage() {
               <div className="divide-y-2" style={{ borderColor: 'var(--border)' }}>
                 {files.map((file) => (
                   <FileRow 
-                    key={file.name} 
+                    key={file.id} // Use file ID as key instead of name
                     file={file} 
-                    onFileClick={(fileName) => router.push(`/file-details?file=${encodeURIComponent(fileName)}`)}
+                    onFileClick={(fileId) => {
+                      console.log("Clicked here trust")
+                      router.push(`/file-details?fileId=${encodeURIComponent(fileId)}`)}}
                     onDeleteClick={handleDeleteFile}
                     getFileIconSvg={getFileIconSvg}
                   />
@@ -275,8 +287,8 @@ export default function FilesPage() {
 
 interface FileRowProps {
   file: FileListItem;
-  onFileClick: (fileName: string) => void;
-  onDeleteClick: (fileName: string) => void;
+  onFileClick: (fileId: string) => void; // Changed from fileName to fileId
+  onDeleteClick: (fileId: string) => void; // Changed from fileName to fileId
   getFileIconSvg: (fileType: string) => React.ReactNode;
 }
 
@@ -295,7 +307,7 @@ const FileRow = ({ file, onFileClick, onDeleteClick, getFileIconSvg }: FileRowPr
       <div className="flex items-center justify-between">
         <div 
           className="flex items-center space-x-4 flex-1 min-w-0 cursor-pointer"
-          onClick={() => onFileClick(file.name)}
+          onClick={() => onFileClick(file.id)} // Use file.id instead of file.name
         >
           <div className="flex-shrink-0">
             {getFileIconSvg(file.fileType)}
@@ -304,9 +316,6 @@ const FileRow = ({ file, onFileClick, onDeleteClick, getFileIconSvg }: FileRowPr
             <p className="text-lg font-semibold truncate" style={{ color: 'var(--text)' }}>
               {file.name}
             </p>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              {file.formattedSize} • Modified {file.formattedDate}
-            </p>
           </div>
         </div>
         
@@ -314,7 +323,7 @@ const FileRow = ({ file, onFileClick, onDeleteClick, getFileIconSvg }: FileRowPr
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onDeleteClick(file.name);
+              onDeleteClick(file.id); // Use file.id instead of file.name
             }}
             className="p-2 rounded hover:bg-red-100 transition-colors duration-200"
             style={{ color: 'var(--danger)' }}

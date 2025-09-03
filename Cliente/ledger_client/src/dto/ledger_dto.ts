@@ -2,10 +2,9 @@ export interface LedgerDTO {
   name: string;
   entriesPerPage: number;
   hashAlgorithm: string;
-  cryptoAlgorithm: string;
-  verifiedEntries: PageEntryDTO[];
-  nonVerifiedEntries: PageEntryDTO[];
   pages: PageSummaryDTO[];
+  unverifiedEntries: PageEntryDTO[];
+  verifiedEntries: PageEntryDTO[];
 }
 
 export interface PageSummaryDTO {
@@ -19,8 +18,9 @@ export interface PageDTO {
   number: number;
   timestamp: number;
   previousHash?: string;
-  entryCount: number;
+  merkleRoot: string;
   hash: string;
+  entryCount: number;
   entries: PageEntryDTO[];
 }
 
@@ -35,12 +35,12 @@ export interface EntryDTO {
   content: string;
   senders: ParticipantDTO[];
   recipients: ParticipantDTO[];
+  hash: string;
   signatures: SignatureDTO[];
-  relatedEntryIds: string[];
-  keywords: string[];
   ledgerName: string;
   pageNumber?: number;
-  hash: string;
+  relatedEntryIds: string[];
+  keywords: string[];
 }
 
 export interface ParticipantDTO {
@@ -53,4 +53,5 @@ export interface SignatureDTO {
   email: string;
   publicKey: string;
   signature: string;
+  algorithm: string;
 }

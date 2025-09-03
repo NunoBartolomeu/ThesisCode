@@ -1,12 +1,16 @@
-export interface FileDetailsDto {
+export interface FileMetadataDto {
+  id: string;
   originalFileName: string;
-  actualFileName: string;
+  actualFileName: string; // rethink if it should be passed to here
+  filePath: string; // rethink if it should be passed to here
   fileSize: number;
   contentType?: string;
   uploadedAt: number;
-  lastAccessed?: number;
-  ownerFullName?: string;
-  ownerEmail?: string;
+  uploaderId: string;
+  senders: string[];
+  receivers: string[];
+  ledgerEntries: string[];
+  wasDeleted: boolean;
 }
 
 export interface FileListResponse {
@@ -14,9 +18,10 @@ export interface FileListResponse {
 }
 
 export interface FileInfoDTO {
+  id: string;
   name: string;
   size: number;
-  lastModified: number;
+  wasDeleted: boolean;
 }
 
 export interface DeleteFileResponse {
@@ -25,4 +30,12 @@ export interface DeleteFileResponse {
 
 export interface FileUploadRequest {
   file: File;
+  senders?: string[];
+  receivers?: string[];
+}
+
+export interface FileUploadResponse {
+  message: string;
+  fileId: string;
+  fileName: string;
 }

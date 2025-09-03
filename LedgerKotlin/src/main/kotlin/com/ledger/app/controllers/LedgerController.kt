@@ -1,15 +1,12 @@
 package com.ledger.app.controllers
 
 import com.ledger.app.dtos.*
-import com.ledger.app.models.ledger.Entry
-import com.ledger.app.models.ledger.Ledger
-import com.ledger.app.models.ledger.Page
-import com.ledger.app.models.ledger.PageSummary
 import com.ledger.app.services.auth.AuthService
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
+import jakarta.annotation.PostConstruct
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.*
@@ -20,7 +17,14 @@ class LedgerController(
     private val ledgerService: LedgerService,
     private val authService: AuthService
 ) {
-    private val logger = ColorLogger("LedgerController", RGB.RED_DARK, LogLevel.DEBUG)
+    @Value("\${app.logLevel:INFO}")
+    private lateinit var logLevelStr: String
+    private lateinit var logger: ColorLogger
+
+    @PostConstruct
+    fun initialize() {
+        logger = ColorLogger("LedgerController", RGB.RED_DARK, logLevelStr)
+    }
 
     @GetMapping("/available")
     fun getAvailableLedgers(): ResponseEntity<List<String>> {
@@ -98,7 +102,7 @@ class LedgerController(
             return ResponseEntity.notFound().build()
         }
         logger.debug("Entry $entryId fetched successfully")
-        return ResponseEntity.ok(entry.toDTO(userId))
+        return ResponseEntity.ok(entry.toEntryDTO(userId, authService))
     }
 
     private fun getUserId(user: Any): String {
@@ -120,81 +124,5 @@ class LedgerController(
             logger.warn("Failed to extract user ID: ${e.message}")
             user.toString()
         }
-    }
-
-    private fun Entry.toDTO(userId: String): EntryDTO {
-        val isParticipant = senders.contains(userId) || recipients.contains(userId)
-        return EntryDTO(
-            id = id,
-            timestamp = timestamp,
-            content = if (isParticipant) content else "Not available for user",
-            senders = senders.map { resolveParticipant(it) },
-            recipients = recipients.map { resolveParticipant(it) },
-            signatures = signatures.map {
-                SignatureDTO(
-                    participant = resolveName(it.signerId),
-                    email = it.signerId,
-                    publicKey = it.publicKey,
-                    signature = it.signatureData
-                )
-            },
-            relatedEntryIds = relatedEntries,
-            keywords = keywords,
-            ledgerName = ledgerName,
-            pageNumber = pageNum,
-            hash = hash
-        )
-    }
-
-    private fun resolveParticipant(id: String): ParticipantDTO {
-        return ParticipantDTO(
-            fullName = resolveName(id),
-            email = id
-        )
-    }
-
-    private fun resolveName(id: String): String {
-        val info = authService.getUserInfo(id)?: throw IllegalArgumentException("User not found")
-        return info.fullName
-    }
-
-    private fun Ledger.toLedgerDTO(userId: String): LedgerDTO {
-        logger.debug("Converting Ledger model to DTO for user $userId")
-        return LedgerDTO(
-            name = config.name,
-            entriesPerPage = config.entriesPerPage,
-            hashAlgorithm = config.hashAlgorithm,
-            verifiedEntries = verifiedEntries.map {it.toPageEntryDTO(userId) },
-            unverifiedEntries = holdingArea.map { it.toPageEntryDTO(userId) },
-            pages = pages.map { it.toPageSummary().toDTO() }
-        )
-    }
-
-    private fun PageSummary.toDTO(): PageSummaryDTO {
-        return PageSummaryDTO(
-            number = number,
-            timestamp = timestamp,
-            entryCount = entryCount
-        )
-    }
-
-    private fun Entry.toPageEntryDTO(userId: String): PageEntryDTO {
-        val isParticipant = senders.contains(userId) || recipients.contains(userId)
-        return PageEntryDTO(
-            id = id,
-            isParticipant = isParticipant
-        )
-    }
-
-    private fun Page.toPageDTO(userId: String): PageDTO {
-        return PageDTO(
-            ledgerName = ledgerName,
-            number = number,
-            timestamp = timestamp,
-            previousHash = previousHash,
-            entryCount = entries.count(),
-            hash = hash,
-            entries = entries.map { it.toPageEntryDTO(userId) }
-        )
     }
 }

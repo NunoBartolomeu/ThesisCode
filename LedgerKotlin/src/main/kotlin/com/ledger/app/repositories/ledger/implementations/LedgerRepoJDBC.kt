@@ -71,9 +71,9 @@ class LedgerRepoJDBC(
                     CREATE TABLE IF NOT EXISTS entry_senders (
                         entry_id VARCHAR NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
                         user_id VARCHAR NOT NULL,
-                        public_key TEXT NOT NULL,
-                        sig_data TEXT NOT NULL,
-                        algorithm VARCHAR NOT NULL,
+                        public_key TEXT,
+                        sig_data TEXT,
+                        algorithm VARCHAR,
                         PRIMARY KEY (entry_id, user_id)
                     )
                 """.trimIndent())
@@ -251,15 +251,17 @@ class LedgerRepoJDBC(
             }
 
             // Senders
-            entry.signatures.forEach { sig ->
+            val sigMap = entry.signatures.associateBy { it.signerId }
+            entry.senders.forEach { userId ->
+                val sig = sigMap[userId]
                 conn.prepareStatement(
                     "INSERT INTO entry_senders (entry_id, user_id, public_key, sig_data, algorithm) VALUES (?,?,?,?,?)"
                 ).use { ps ->
                     ps.setString(1, entry.id)
-                    ps.setString(2, sig.signerId)
-                    ps.setString(3, sig.publicKey)
-                    ps.setString(4, sig.signatureData)
-                    ps.setString(5, sig.algorithm)
+                    ps.setString(2, userId)
+                    ps.setString(3, sig?.publicKey)
+                    ps.setString(4, sig?.signatureData)
+                    ps.setString(5, sig?.algorithm)
                     ps.executeUpdate()
                 }
             }
@@ -289,29 +291,52 @@ class LedgerRepoJDBC(
     }
 
     override fun readEntry(entryId: String): Entry? = getConnection().use { conn ->
-        conn.prepareStatement("SELECT * FROM entries WHERE id=?").use { ps ->
+        conn.prepareStatement(
+            "SELECT id, ledger_name, page_num, timestamp, content, hash, keywords FROM entries WHERE id=?"
+        ).use { ps ->
             ps.setString(1, entryId)
             val rs = ps.executeQuery()
             if (!rs.next()) return null
 
-            val keywords: List<String> = mapper.readValue(rs.getString("keywords"))
+            // keywords: tolerate NULL / empty / malformed
+            val rawKeywords = rs.getString("keywords")
+            val keywords: List<String> = try {
+                if (rawKeywords.isNullOrBlank()) emptyList()
+                else mapper.readValue(rawKeywords)
+            } catch (_: Exception) {
+                emptyList()
+            }
 
+            // Senders + Signatures
+            val senders = mutableListOf<String>()
             val signatures = mutableListOf<Entry.Signature>()
-            conn.prepareStatement("SELECT * FROM entry_senders WHERE entry_id=?").use { ps2 ->
+            conn.prepareStatement(
+                "SELECT user_id, public_key, sig_data, algorithm FROM entry_senders WHERE entry_id=?"
+            ).use { ps2 ->
                 ps2.setString(1, entryId)
                 val rs2 = ps2.executeQuery()
                 while (rs2.next()) {
-                    signatures.add(
-                        Entry.Signature(
-                            signerId = rs2.getString("user_id"),
-                            publicKey = rs2.getString("public_key"),
-                            signatureData = rs2.getString("sig_data"),
-                            algorithm = rs2.getString("algorithm")
+                    val userId = rs2.getString("user_id")!!  // NOT NULL by schema
+                    senders.add(userId)
+
+                    val pk = rs2.getString("public_key")
+                    val sigData = rs2.getString("sig_data")
+                    val algo = rs2.getString("algorithm")
+
+                    if (!pk.isNullOrBlank() && !sigData.isNullOrBlank() && !algo.isNullOrBlank()) {
+                        signatures.add(
+                            Entry.Signature(
+                                signerId = userId,
+                                publicKey = pk,
+                                signatureData = sigData,
+                                algorithm = algo
+                            )
                         )
-                    )
+                    }
                 }
             }
 
+            // Recipients
             val recipients = mutableListOf<String>()
             conn.prepareStatement("SELECT user_id FROM entry_recipients WHERE entry_id=?").use { ps2 ->
                 ps2.setString(1, entryId)
@@ -319,6 +344,7 @@ class LedgerRepoJDBC(
                 while (rs2.next()) recipients.add(rs2.getString("user_id"))
             }
 
+            // Related entries
             val relatedEntries = mutableListOf<String>()
             conn.prepareStatement("SELECT related_entry_id FROM related_entries WHERE entry_id=?").use { ps2 ->
                 ps2.setString(1, entryId)
@@ -326,21 +352,32 @@ class LedgerRepoJDBC(
                 while (rs2.next()) relatedEntries.add(rs2.getString("related_entry_id"))
             }
 
+            // page_num may be NULL
+            val pageNum: Int? = run {
+                val obj = rs.getObject("page_num")
+                when (obj) {
+                    null -> null
+                    is Int -> obj
+                    else -> rs.getInt("page_num").let { if (rs.wasNull()) null else it }
+                }
+            }
+
             Entry(
                 id = rs.getString("id"),
                 timestamp = rs.getLong("timestamp"),
                 content = rs.getString("content"),
-                senders = signatures.map { it.signerId }, // convenience
+                senders = senders,
                 recipients = recipients,
                 hash = rs.getString("hash"),
                 signatures = signatures,
                 ledgerName = rs.getString("ledger_name"),
-                pageNum = rs.getInt("page_num").let { if (rs.wasNull()) null else it },
+                pageNum = pageNum,
                 relatedEntries = relatedEntries,
                 keywords = keywords
             )
         }
     }
+
 
     override fun updateEntry(entry: Entry) {
         getConnection().use { conn ->

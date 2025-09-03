@@ -7,7 +7,6 @@ import com.ledger.app.utils.ColorLogger
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
 import org.springframework.scheduling.annotation.Scheduled
-import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 
@@ -37,7 +36,7 @@ enum class TamperType {
 class LedgerTamperingService(
     private val repo: LedgerRepo
 ) {
-    private val logger = ColorLogger("LedgerTamperer", RGB.YELLOW_SOFT, LogLevel.DEBUG)
+    private val logger = ColorLogger("LedgerTamperer", RGB.PINK_DARK, LogLevel.DEBUG)
 
     // Track current tampering state for each ledger
     private val tamperStates = ConcurrentHashMap<String, TamperState>()
@@ -324,41 +323,57 @@ class LedgerTamperingService(
                 val restoredPage = targetPage.copy(timestamp = tamperState.originalValue.toLong())
                 repo.updatePageForTamperEvidenceTesting(restoredPage)
             }
+
             TamperType.PAGE_HASH -> {
                 val restoredPage = targetPage.copy(hash = tamperState.originalValue)
                 repo.updatePageForTamperEvidenceTesting(restoredPage)
             }
+
             TamperType.PAGE_MERKLE_ROOT -> {
                 val restoredPage = targetPage.copy(merkleRoot = tamperState.originalValue)
                 repo.updatePageForTamperEvidenceTesting(restoredPage)
             }
+
             TamperType.PAGE_PREVIOUS_HASH -> {
                 val restoredValue = if (tamperState.originalValue == "null") null else tamperState.originalValue
                 val restoredPage = targetPage.copy(previousHash = restoredValue)
                 repo.updatePageForTamperEvidenceTesting(restoredPage)
             }
+
             TamperType.ENTRY_TIMESTAMP -> {
                 restoreEntryField(targetPage, tamperState.entryId!!) { entry, originalValue ->
                     entry.copy(timestamp = originalValue.toLong())
                 }
             }
+
             TamperType.ENTRY_HASH -> {
                 restoreEntryField(targetPage, tamperState.entryId!!) { entry, originalValue ->
                     entry.copy(hash = originalValue)
                 }
             }
+
             TamperType.ENTRY_CONTENT -> {
                 restoreEntryField(targetPage, tamperState.entryId!!) { entry, originalValue ->
                     entry.copy(content = originalValue)
                 }
             }
+
             TamperType.SIGNATURE_VALUE -> {
-                restoreSignatureField(targetPage, tamperState.entryId!!, tamperState.originalValue) { signature, originalValue ->
+                restoreSignatureField(
+                    targetPage,
+                    tamperState.entryId!!,
+                    tamperState.originalValue
+                ) { signature, originalValue ->
                     signature.copy(signatureData = originalValue)
                 }
             }
+
             TamperType.SIGNATURE_PUBLIC_KEY -> {
-                restoreSignatureField(targetPage, tamperState.entryId!!, tamperState.originalValue) { signature, originalValue ->
+                restoreSignatureField(
+                    targetPage,
+                    tamperState.entryId!!,
+                    tamperState.originalValue
+                ) { signature, originalValue ->
                     signature.copy(publicKey = originalValue)
                 }
             }
@@ -375,7 +390,12 @@ class LedgerTamperingService(
         repo.updateEntry(restoredEntry)
     }
 
-    private fun restoreSignatureField(page: Page, entryId: String, originalValue: String, restoreFunction: (Entry.Signature, String) -> Entry.Signature) {
+    private fun restoreSignatureField(
+        page: Page,
+        entryId: String,
+        originalValue: String,
+        restoreFunction: (Entry.Signature, String) -> Entry.Signature
+    ) {
         val targetEntry = page.entries.find { it.id == entryId } ?: return
         val targetSignature = targetEntry.signatures.find {
             it.signatureData == tamperStates[page.ledgerName]?.tamperedValue ||

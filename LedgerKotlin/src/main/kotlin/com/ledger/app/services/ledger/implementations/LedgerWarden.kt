@@ -3,16 +3,14 @@ package com.ledger.app.services.ledger.implementations
 import com.ledger.app.models.ledger.Entry
 import com.ledger.app.models.ledger.Ledger
 import com.ledger.app.models.ledger.Page
-import com.ledger.app.models.ledger.PageBuilder
 import com.ledger.app.models.ledger.PageBuilder.Companion.computeMerkleTree
 import com.ledger.app.repositories.ledger.LedgerRepo
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.hash.HashProvider
 import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
+import com.ledger.app.utils.hash.HashProvider
 import com.ledger.app.utils.signature.SignatureProvider
 import org.springframework.scheduling.annotation.Scheduled
-import org.springframework.stereotype.Service
 
 data class LedgerIntegrityReport(
     val ledgerName: String,
@@ -49,7 +47,7 @@ enum class ErrorType {
 class LedgerWarden(
     private val repo: LedgerRepo
 ) {
-    private val logger = ColorLogger("LedgerWarden", RGB.YELLOW_BRIGHT, LogLevel.DEBUG)
+    private val logger = ColorLogger("LedgerWarden", RGB.PINK_LIGHT, LogLevel.DEBUG)
 
     @Scheduled(fixedDelayString = "\${ledger.warden.interval:30000}") // Default 30 seconds
     fun validateAllLedgers() {
@@ -69,13 +67,15 @@ class LedgerWarden(
                 }
             } catch (e: Exception) {
                 logger.error("Failed to validate ledger '${config.name}': ${e.message}")
-                reports.add(LedgerIntegrityReport(
-                    ledgerName = config.name,
-                    firstPage = -1,
-                    lastPage = -1,
-                    result = ValidationResult.TAMPERING_DETECTED,
-                    context = "Validation Error: ${e.message}"
-                ))
+                reports.add(
+                    LedgerIntegrityReport(
+                        ledgerName = config.name,
+                        firstPage = -1,
+                        lastPage = -1,
+                        result = ValidationResult.TAMPERING_DETECTED,
+                        context = "Validation Error: ${e.message}"
+                    )
+                )
             }
         }
     }
@@ -305,7 +305,13 @@ class LedgerWarden(
         // Validate all signatures are cryptographically valid
         for (signature in entry.signatures) {
             try {
-                if (!SignatureProvider.verify(entry.hash, signature.signatureData, signature.publicKey, signature.algorithm)) {
+                if (!SignatureProvider.verify(
+                        entry.hash,
+                        signature.signatureData,
+                        signature.publicKey,
+                        signature.algorithm
+                    )
+                ) {
                     return ValidationError(
                         type = ErrorType.SIGNATURE_INVALID,
                         pageNumber = null,
@@ -332,7 +338,7 @@ class LedgerWarden(
     }
 
     private fun calculatePageHash(page: Page, hashAlgorithm: String): String {
-        val data =listOf(
+        val data = listOf(
             page.ledgerName,
             page.number.toString(),
             page.timestamp,

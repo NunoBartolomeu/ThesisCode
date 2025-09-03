@@ -1,7 +1,7 @@
-package com.ledger.app.repositories.files.implementations
+package com.ledger.app.repositories.file.implementations
 
-import com.ledger.app.models.FileMetadata
-import com.ledger.app.repositories.files.FilesRepo
+import com.ledger.app.repositories.file.FileRepo
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
 import org.springframework.stereotype.Repository
@@ -10,18 +10,16 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.util.concurrent.ConcurrentHashMap
 
 @Repository
-class FilesRepoMemory : FilesRepo {
+class FileRepoFileSystem : FileRepo {
 
-    // In-memory storage: userId -> fileName -> FileMetadata
-    private val filesMetadata = ConcurrentHashMap<String, ConcurrentHashMap<String, FileMetadata>>()
-    private val uploadDirectory = "uploads" // You can make this configurable
+    @Value("\${app.files.uploadDirectory:uploads}")
+    private lateinit var uploadDirectory: String
 
-    override fun saveFile(userId: String, file: MultipartFile): FileMetadata {
+    override fun saveFile(uploaderId: String, file: MultipartFile): File {
         try {
-            val userDir = getUserDirectory(userId)
+            val userDir = getUserDirectory(uploaderId)
 
             // Ensure user directory exists
             if (!userDir.exists()) {
@@ -42,23 +40,7 @@ class FilesRepoMemory : FilesRepo {
                 Files.copy(inputStream, finalFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
 
-            // Create and save metadata
-            val metadata = FileMetadata(
-                userId = userId,
-                originalFileName = originalFilename,
-                actualFileName = finalFile.name,
-                filePath = finalFile.absolutePath,
-                fileSize = finalFile.length(),
-                contentType = file.contentType,
-                uploadedAt = System.currentTimeMillis(),
-                lastAccessed = null
-            )
-
-            // Save metadata to in-memory storage
-            val userFiles = filesMetadata.computeIfAbsent(userId) { ConcurrentHashMap() }
-            userFiles[originalFilename] = metadata
-
-            return metadata
+            return finalFile
 
         } catch (e: IOException) {
             throw RuntimeException("Could not save file: ${e.message}", e)
@@ -69,14 +51,10 @@ class FilesRepoMemory : FilesRepo {
 
     override fun loadFile(userId: String, fileName: String): Resource {
         try {
-            // Check metadata first
-            val metadata = getFileMetadata(userId, fileName)
-                ?: throw RuntimeException("File not found")
-
-            val file = File(metadata.filePath)
+            val userDir = getUserDirectory(userId)
+            val file = File(userDir, fileName)
 
             // Security check: ensure the resolved path is within the user directory
-            val userDir = getUserDirectory(userId)
             val userDirPath = userDir.toPath().toRealPath()
             val filePath = file.toPath().toRealPath()
 
@@ -87,9 +65,6 @@ class FilesRepoMemory : FilesRepo {
             if (!file.exists()) {
                 throw RuntimeException("File not found on disk")
             }
-
-            // Update last accessed timestamp
-            updateLastAccessed(userId, fileName)
 
             return FileSystemResource(file)
 
@@ -102,13 +77,10 @@ class FilesRepoMemory : FilesRepo {
 
     override fun deleteFile(userId: String, fileName: String): Boolean {
         return try {
-            // Get metadata first
-            val metadata = getFileMetadata(userId, fileName) ?: return false
-
-            val file = File(metadata.filePath)
+            val userDir = getUserDirectory(userId)
+            val file = File(userDir, fileName)
 
             // Security check: ensure the resolved path is within the user directory
-            val userDir = getUserDirectory(userId)
             val userDirPath = userDir.toPath().toRealPath()
             val filePath = file.toPath().toRealPath()
 
@@ -117,62 +89,63 @@ class FilesRepoMemory : FilesRepo {
             }
 
             // Delete physical file
-            val physicalFileDeleted = if (file.exists()) {
+            if (file.exists()) {
                 file.delete()
             } else {
                 true // Consider it "deleted" if it doesn't exist
             }
 
-            physicalFileDeleted
-
         } catch (e: Exception) {
             false
         }
-    }
-
-    override fun listUserFiles(userId: String): List<FileMetadata> {
-        val metadataList = getUserFileMetadata(userId)
-
-        return metadataList.filter { metadata ->
-            val file = File(metadata.filePath)
-            if (file.exists() && file.isFile) {
-                true
-            } else {
-                false
-            }
-        }
-    }
-
-    override fun getFileMetadata(userId: String, fileName: String): FileMetadata? {
-        val userFiles = filesMetadata[userId] ?: return null
-        return userFiles[fileName]
-    }
-
-    override fun getUserFileMetadata(userId: String): List<FileMetadata> {
-        val userFiles = filesMetadata[userId] ?: return emptyList()
-        return userFiles.values.toList()
     }
 
     override fun fileExists(userId: String, fileName: String): Boolean {
-        val userFiles = filesMetadata[userId] ?: return false
-        return userFiles.containsKey(fileName)
-    }
-
-    override fun updateLastAccessed(userId: String, fileName: String): Boolean {
         return try {
-            val userFiles = filesMetadata[userId] ?: return false
-            val metadata = userFiles[fileName] ?: return false
+            val userDir = getUserDirectory(userId)
+            val file = File(userDir, fileName)
 
-            val updatedMetadata = metadata.copy(lastAccessed = System.currentTimeMillis())
-            userFiles[fileName] = updatedMetadata
-            true
+            // Security check: ensure the resolved path is within the user directory
+            val userDirPath = userDir.toPath().toRealPath()
+            val filePath = file.toPath().toRealPath()
+
+            if (!filePath.startsWith(userDirPath)) {
+                return false
+            }
+
+            file.exists() && file.isFile
         } catch (e: Exception) {
             false
+        }
+    }
+
+    override fun getFileSize(userId: String, fileName: String): Long? {
+        return try {
+            val userDir = getUserDirectory(userId)
+            val file = File(userDir, fileName)
+
+            // Security check: ensure the resolved path is within the user directory
+            val userDirPath = userDir.toPath().toRealPath()
+            val filePath = file.toPath().toRealPath()
+
+            if (!filePath.startsWith(userDirPath)) {
+                return null
+            }
+
+            if (file.exists() && file.isFile) {
+                file.length()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 
     // Utility methods
     private fun getUserDirectory(userId: String): File {
+        //TODO IS THIS REALLY AN IMPORTANT FUNCTION
+
         // Sanitize userId to prevent directory traversal
         val safeUserId = sanitizeFilename(userId)
         return File(uploadDirectory, safeUserId)
@@ -208,20 +181,5 @@ class FilesRepoMemory : FilesRepo {
         } while (newFile.exists())
 
         return newFile
-    }
-
-    // Additional utility methods
-    fun getUserStorageSize(userId: String): Long {
-        val userFiles = filesMetadata[userId] ?: return 0L
-        return userFiles.values.sumOf { it.fileSize }
-    }
-
-    fun getUserFileCount(userId: String): Int {
-        val userFiles = filesMetadata[userId] ?: return 0
-        return userFiles.size
-    }
-
-    fun getAllUsersWithFiles(): Set<String> {
-        return filesMetadata.keys.toSet()
     }
 }

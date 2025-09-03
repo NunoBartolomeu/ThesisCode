@@ -4,39 +4,32 @@ import com.ledger.app.models.Token
 import com.ledger.app.models.User
 import com.ledger.app.repositories.auth.AuthRepo
 import com.ledger.app.services.auth.AuthService
-import com.ledger.app.services.files.FilesService
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.services.two_fa.TwoFAService
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.hash.HashProvider
-import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
-import com.ledger.app.utils.signature.SignatureProvider
+import com.ledger.app.utils.hash.HashProvider
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import io.jsonwebtoken.security.Keys
-import org.springframework.context.annotation.Lazy
+import jakarta.annotation.PostConstruct
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import java.time.Instant
-import java.util.Date
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class AuthServiceSpring(
     private val repo: AuthRepo,
     private val ledgerService: LedgerService,
-    @Lazy private val filesService: FilesService,
     private val twoFAService: TwoFAService,
     private val passwordEncoder: PasswordEncoder,
+
 ) : AuthService {
-
-    private val AUTH_SERVICE = "auth_service"
     private val AUTH_LEDGER = "auth_ledger"
-
-    private val logger = ColorLogger("AuthService", RGB.GREEN_LIME, LogLevel.DEBUG)
     private val activeTokens = ConcurrentHashMap<String, String>()
 
     companion object {
@@ -100,9 +93,17 @@ class AuthServiceSpring(
             }
         }
         val jwtUtil = JwtUtil()
+        private val AUTH_SERVICE = "auth_service"
     }
 
-    init {
+    @Value("\${app.logLevel:INFO}")
+    private lateinit var logLevelStr: String
+    private lateinit var logger: ColorLogger
+
+    @PostConstruct
+    fun initialize() {
+        logger = ColorLogger("AuthService", RGB.GREEN, logLevelStr)
+
         if (ledgerService.getLedger(AUTH_LEDGER) == null) {
             ledgerService.createLedger(AUTH_LEDGER, 2, HashProvider.getDefaultAlgorithm())
         }
@@ -127,8 +128,6 @@ class AuthServiceSpring(
 
         logger.info("Registered user ${user.fullName}, needing verification")
         ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "Registered new user ${user.id}, needs verification")
-
-        filesService.initiateLedgerForUser(user.id)
 
         return user
     }
@@ -197,6 +196,10 @@ class AuthServiceSpring(
 
     override fun getUserInfo(userId: String): User? {
         return repo.getUser(userId)
+    }
+
+    override fun getAllUsers(): List<User> {
+        return repo.getAllUsers()
     }
 
     override fun logoutUser(userId: String) {
