@@ -157,8 +157,6 @@ class FileController(private val fileService: FileService) {
                 val fileMetadataDto = FileMetadataDto(
                     id = fileMetadata.id,
                     originalFileName = fileMetadata.originalFileName,
-                    actualFileName = fileMetadata.actualFileName,
-                    filePath = fileMetadata.filePath,
                     fileSize = fileMetadata.fileSize,
                     contentType = fileMetadata.contentType,
                     uploadedAt = fileMetadata.uploadedAt,

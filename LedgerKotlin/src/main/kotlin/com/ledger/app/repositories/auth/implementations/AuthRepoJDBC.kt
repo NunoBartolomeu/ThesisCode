@@ -20,8 +20,7 @@ class AuthRepoJDBC(
                 id VARCHAR(255) PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 hashed_password VARCHAR(255) NOT NULL,
-                full_name VARCHAR(255) NOT NULL,
-                email_verified BOOLEAN NOT NULL DEFAULT FALSE
+                full_name VARCHAR(255) NOT NULL
             )
         """.trimIndent()
 
@@ -34,8 +33,8 @@ class AuthRepoJDBC(
 
     override fun saveUser(user: User): Boolean {
         val sql = """
-            INSERT INTO users (id, email, hashed_password, full_name, email_verified)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (id, email, hashed_password, full_name)
+            VALUES (?, ?, ?, ?)
         """.trimIndent()
 
         return try {
@@ -45,7 +44,6 @@ class AuthRepoJDBC(
                     stmt.setString(2, user.email)
                     stmt.setString(3, user.hashedPassword)
                     stmt.setString(4, user.fullName)
-                    stmt.setBoolean(5, user.emailVerified)
                     stmt.executeUpdate() > 0
                 }
             }
@@ -68,8 +66,7 @@ class AuthRepoJDBC(
                                 id = rs.getString("id"),
                                 email = rs.getString("email"),
                                 hashedPassword = rs.getString("hashed_password"),
-                                fullName = rs.getString("full_name"),
-                                emailVerified = rs.getBoolean("email_verified")
+                                fullName = rs.getString("full_name")
                             )
                         } else null
                     }
@@ -94,8 +91,7 @@ class AuthRepoJDBC(
                                 id = rs.getString("id"),
                                 email = rs.getString("email"),
                                 hashedPassword = rs.getString("hashed_password"),
-                                fullName = rs.getString("full_name"),
-                                emailVerified = rs.getBoolean("email_verified")
+                                fullName = rs.getString("full_name")
                             )
                         } else null
                     }
@@ -113,19 +109,18 @@ class AuthRepoJDBC(
             dataSource.connection.use { conn ->
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.executeQuery().use { rs ->
-                        val userIds = mutableListOf<User>()
+                        val users = mutableListOf<User>()
                         while (rs.next()) {
-                            userIds.add(
+                            users.add(
                                 User(
                                     id = rs.getString("id"),
                                     email = rs.getString("email"),
                                     hashedPassword = rs.getString("hashed_password"),
-                                    fullName = rs.getString("full_name"),
-                                    emailVerified = rs.getBoolean("email_verified")
+                                    fullName = rs.getString("full_name")
                                 )
                             )
                         }
-                        userIds
+                        users
                     }
                 }
             }
@@ -138,7 +133,7 @@ class AuthRepoJDBC(
     override fun updateUser(user: User): Boolean {
         val sql = """
             UPDATE users 
-            SET email = ?, hashed_password = ?, full_name = ?, email_verified = ?
+            SET email = ?, hashed_password = ?, full_name = ?
             WHERE id = ?
         """.trimIndent()
 
@@ -148,24 +143,7 @@ class AuthRepoJDBC(
                     stmt.setString(1, user.email)
                     stmt.setString(2, user.hashedPassword)
                     stmt.setString(3, user.fullName)
-                    stmt.setBoolean(4, user.emailVerified)
-                    stmt.setString(5, user.id)
-                    stmt.executeUpdate() > 0
-                }
-            }
-        } catch (e: Exception) {
-            println(e)
-            false
-        }
-    }
-
-    override fun verifyEmail(userId: String): Boolean {
-        val sql = "UPDATE users SET email_verified = TRUE WHERE id = ?"
-
-        return try {
-            dataSource.connection.use { conn ->
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, userId)
+                    stmt.setString(4, user.id)
                     stmt.executeUpdate() > 0
                 }
             }

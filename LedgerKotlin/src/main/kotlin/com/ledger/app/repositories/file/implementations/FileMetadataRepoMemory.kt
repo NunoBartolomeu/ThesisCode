@@ -8,7 +8,7 @@ import org.springframework.stereotype.Repository
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
-@Repository
+//@Repository
 class FileMetadataRepoMemory : FileMetadataRepo {
     private val metadataStorage = ConcurrentHashMap<String, FileMetadata>()
     private val participantsStorage = ConcurrentHashMap<String, MutableList<FileParticipant>>()
@@ -71,14 +71,11 @@ class FileMetadataRepoMemory : FileMetadataRepo {
     }
 
     override fun getUserAccessibleFiles(userId: String): List<FileMetadata> {
-        println("File participants for listing: $participantsStorage")
-        println("User id: $userId")
         val accessibleFileIds = participantsStorage.values
             .flatten()
             .filter { it.userId == userId }
             .map { it.fileMetadataId }
             .toSet()
-        println("User has ${accessibleFileIds.size} accessible files")
         return accessibleFileIds.mapNotNull { metadataStorage[it] }
     }
 

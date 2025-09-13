@@ -24,13 +24,4 @@ class AuthRepoMemory: AuthRepo {
 
     override fun updateUser(user: User): Boolean = saveUser(user)
 
-    override fun verifyEmail(userId: String): Boolean {
-        val newUser = users[userId]
-        if (newUser != null) {
-            newUser.copy(emailVerified = true)
-            saveUser(newUser)
-            return true
-        }
-        return false
-    }
 }

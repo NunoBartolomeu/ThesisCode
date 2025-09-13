@@ -27,12 +27,12 @@ class AuthServiceSpring(
     private val ledgerService: LedgerService,
     private val twoFAService: TwoFAService,
     private val passwordEncoder: PasswordEncoder,
-
 ) : AuthService {
-    private val AUTH_LEDGER = "auth_ledger"
-    private val activeTokens = ConcurrentHashMap<String, String>()
 
     companion object {
+        private const val AUTH_LEDGER = "auth_ledger"
+        private const val AUTH_SERVICE = "auth_service"
+
         @Component
         class JwtUtil {
             // 256‑bit HMAC secret; in prod load from env or vault
@@ -92,9 +92,11 @@ class AuthServiceSpring(
                 }
             }
         }
+
         val jwtUtil = JwtUtil()
-        private val AUTH_SERVICE = "auth_service"
     }
+
+    private val activeTokens = ConcurrentHashMap<String, String>()
 
     @Value("\${app.logLevel:INFO}")
     private lateinit var logLevelStr: String
@@ -105,7 +107,7 @@ class AuthServiceSpring(
         logger = ColorLogger("AuthService", RGB.GREEN, logLevelStr)
 
         if (ledgerService.getLedger(AUTH_LEDGER) == null) {
-            ledgerService.createLedger(AUTH_LEDGER, 2, HashProvider.getDefaultAlgorithm())
+            ledgerService.createLedger(AUTH_LEDGER, 3, HashProvider.getDefaultAlgorithm())
         }
     }
 
@@ -116,61 +118,80 @@ class AuthServiceSpring(
             logger.error("Email $email is already registered to a user")
             throw IllegalArgumentException("Email already in use")
         }
+
         val encodedPassword = passwordEncoder.encode(passwordHash)
-        val user = User(id = generateId(), email = email, hashedPassword = encodedPassword, fullName = fullName, emailVerified = false)
+        val user = User(id = generateId(), email = email, hashedPassword = encodedPassword, fullName = fullName)
 
         if (!repo.saveUser(user)) {
             logger.error("Repository failed to save user $fullName")
-            throw IllegalArgumentException("Invalid credentials")
+            throw IllegalArgumentException("Failed to save user")
         }
 
         twoFAService.sendCode(email, AUTH_SERVICE)
 
-        logger.info("Registered user ${user.fullName}, needing verification")
-        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "Registered new user ${user.id}, needs verification")
+        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "Registered new user ${user.id}")
+        logger.info("Registered user ${user.fullName}, 2FA code sent")
 
         return user
     }
 
     override fun loginUser(email: String, passwordHash: String): User {
-        val user = repo.getUserByEmail(email)
-
-        if (user == null) {
-            logger.error("Email $email is not associated with a user")
-            throw IllegalArgumentException("Invalid credentials")
-        }
+        val user = repo.getUserByEmail(email) ?: run {
+                logger.error("Email $email is not associated with a user")
+                throw IllegalArgumentException("Invalid credentials")
+            }
 
         if (!passwordEncoder.matches(passwordHash, user.hashedPassword)) {
+            logger.debug("Password gotten: ${passwordHash}")
             logger.error("Password authentication failed for $email")
             throw IllegalArgumentException("Invalid credentials")
         }
 
         twoFAService.sendCode(email, AUTH_SERVICE)
 
-        logger.info("Authenticated user ${user.fullName}")
-        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "Authenticated user ${user.fullName}")
+        logger.info("Password authenticated for user ${user.fullName}, 2FA code sent")
+        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "Password authenticated for user ${user.fullName}")
+
         return user
+    }
+
+    override fun logoutUser(userId: String) {
+        val user = repo.getUser(userId)
+
+        if (user?.email == null) {
+            logger.warn("Attempted logout for non-existent user: $userId")
+            return
+        }
+
+        // Remove all active tokens for this user
+        val tokensToRemove = activeTokens.filterValues { it == user.email }.keys
+        tokensToRemove.forEach { token ->
+            activeTokens.remove(token)
+        }
+
+        logger.info("User logged out: ${user.email} (${tokensToRemove.size} tokens invalidated)")
+        ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "User ${user.fullName} logged out")
     }
 
     override fun verifyCodeAndGetToken(email: String, code: String): Token {
         if (!twoFAService.verifyCode(email, code, AUTH_SERVICE)) {
             logger.error("Invalid or expired verification code for $email")
-            throw IllegalArgumentException("Invalid or expired verification code for $email")
+            throw IllegalStateException("Invalid or expired verification code")
         }
 
-        val user = repo.getUserByEmail(email)?: throw IllegalArgumentException("User not found")
-
-        if (!user.emailVerified) {
-            repo.verifyEmail(user.id)
-            logger.info("Email verified for user ${user.fullName}")
+        val user = repo.getUserByEmail(email)
+        if (user == null) {
+            logger.error("User not found in repository for email: $email")
+            throw IllegalArgumentException("User not found")
         }
+
 
         val accessToken = jwtUtil.createAccessToken(email)
         val expiresAt = Instant.now().plusSeconds(24 * 60 * 60).epochSecond
 
         activeTokens[accessToken] = email
 
-        logger.info("User ${user.fullName} authenticated successfully")
+        logger.info("User ${user.fullName} authenticated successfully with 2FA")
         ledgerService.logSystemEvent(AUTH_LEDGER, AUTH_SERVICE, user.id, "User ${user.fullName} authenticated successfully")
 
         return Token(
@@ -182,15 +203,29 @@ class AuthServiceSpring(
     override fun validateToken(token: String): Boolean {
         val email = activeTokens[token] ?: return false
 
+        // Validate JWT structure and signature
         val tokenEmail = jwtUtil.validateAndGetSubject(token)
         if (tokenEmail != email) {
             activeTokens.remove(token)
+            logger.warn("Token validation failed: email mismatch")
             return false
         }
 
-        val user = repo.getUserByEmail(email)?: return false
-        logger.debug("Token validated for ${user.fullName}")
+        // Check if token is expired
+        if (jwtUtil.isTokenExpired(token)) {
+            activeTokens.remove(token)
+            logger.debug("Token expired and removed from active tokens")
+            return false
+        }
 
+        // Verify user exists
+        val user = repo.getUserByEmail(email) ?: run {
+            activeTokens.remove(token)
+            logger.warn("Token validation failed: user no longer exists")
+            return false
+        }
+
+        logger.debug("Token validated for ${user.fullName}")
         return true
     }
 
@@ -200,12 +235,5 @@ class AuthServiceSpring(
 
     override fun getAllUsers(): List<User> {
         return repo.getAllUsers()
-    }
-
-    override fun logoutUser(userId: String) {
-        val user = repo.getUser(userId)
-        if (user?.email != null) {
-            logger.info("User logged out: ${user.email}")
-        }
     }
 }

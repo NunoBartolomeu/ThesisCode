@@ -34,28 +34,6 @@ class LedgerController(
         return ResponseEntity.ok(ledgers)
     }
 
-    @PostMapping("/entry/{entryId}/keywords")
-    fun addKeywords(
-        @PathVariable entryId: String,
-        @RequestBody keywords: List<String>
-    ): ResponseEntity<Map<String, String>> {
-        logger.info("Adding keywords to entry $entryId: $keywords")
-        ledgerService.addKeywords(entryId, keywords)
-        logger.debug("Keywords added to entry $entryId")
-        return ResponseEntity.ok(mapOf("message" to "Keywords added"))
-    }
-
-    @DeleteMapping("/entry/{entryId}/keyword/{keyword}")
-    fun removeKeyword(
-        @PathVariable entryId: String,
-        @PathVariable keyword: String
-    ): ResponseEntity<Map<String, String>> {
-        logger.info("Removing keyword '$keyword' from entry $entryId")
-        ledgerService.removeKeyword(entryId, keyword)
-        logger.debug("Keyword removed from entry $entryId")
-        return ResponseEntity.ok(mapOf("message" to "Keyword removed"))
-    }
-
     @GetMapping("/{ledgerName}")
     fun getLedger(
         @PathVariable ledgerName: String,
@@ -102,7 +80,30 @@ class LedgerController(
             return ResponseEntity.notFound().build()
         }
         logger.debug("Entry $entryId fetched successfully")
+        logger.debug("Entry data: $entry")
         return ResponseEntity.ok(entry.toEntryDTO(userId, authService))
+    }
+
+    @PostMapping("/entry/{entryId}/keywords")
+    fun addKeywords(
+        @PathVariable entryId: String,
+        @RequestBody keywords: List<String>
+    ): ResponseEntity<Map<String, String>> {
+        logger.info("Adding keywords to entry $entryId: $keywords")
+        ledgerService.addKeywords(entryId, keywords)
+        logger.debug("Keywords added to entry $entryId")
+        return ResponseEntity.ok(mapOf("message" to "Keywords added"))
+    }
+
+    @DeleteMapping("/entry/{entryId}/keyword/{keyword}")
+    fun removeKeyword(
+        @PathVariable entryId: String,
+        @PathVariable keyword: String
+    ): ResponseEntity<Map<String, String>> {
+        logger.info("Removing keyword '$keyword' from entry $entryId")
+        ledgerService.removeKeyword(entryId, keyword)
+        logger.debug("Keyword removed from entry $entryId")
+        return ResponseEntity.ok(mapOf("message" to "Keyword removed"))
     }
 
     private fun getUserId(user: Any): String {

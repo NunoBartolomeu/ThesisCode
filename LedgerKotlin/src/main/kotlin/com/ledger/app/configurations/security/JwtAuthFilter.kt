@@ -36,7 +36,6 @@ class JwtAuthenticationFilter(
         if (authHeader?.startsWith("Bearer ") == true) {
             val token = authHeader.removePrefix("Bearer ").trim()
             try {
-                // Now JWT tokens contain email, not userId
                 val email = jwtUtil.validateAndGetSubject(token)
 
                 if (email != null) {
@@ -45,7 +44,6 @@ class JwtAuthenticationFilter(
                     if (user != null) {
                         val auth = UsernamePasswordAuthenticationToken(user, null, emptyList())
                         SecurityContextHolder.getContext().authentication = auth
-                        //logger.info("Authentication successful for $email on $method $requestUri")
                     }
                 }
             } catch (e: Exception) {
@@ -55,7 +53,6 @@ class JwtAuthenticationFilter(
 
         filterChain.doFilter(request, response)
 
-        // Log the response status after processing
         if (response.status >= 400) {
             logger.error("Request BOUNCED with status ${response.status}: $method $requestUri")
         } else {

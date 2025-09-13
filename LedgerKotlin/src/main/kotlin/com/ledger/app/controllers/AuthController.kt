@@ -25,11 +25,12 @@ class AuthController(private val authService: AuthService) {
 
     @PostMapping("/register")
     fun register(@RequestBody request: RegisterRequest): ResponseEntity<SimpleAuthResult> {
-        logger.info("Register request for email: ${request.email}")
+        logger.debug("Register request for email: ${request.email}")
+        logger.debug("Password hash given: ${request.passwordHash}")
         return try {
             val user = authService.registerUser(request.email, request.passwordHash, request.fullName)
             logger.info("Registration successful for: ${request.email}")
-            ResponseEntity.ok(SimpleAuthResult(user.email, user.fullName, true))
+            ResponseEntity.ok(SimpleAuthResult(user.id, user.email, user.fullName))
         } catch (e: IllegalArgumentException) {
             logger.warn("Registration failed: ${e.message}")
             ResponseEntity.badRequest().body(null)
@@ -38,11 +39,12 @@ class AuthController(private val authService: AuthService) {
 
     @PostMapping("/login")
     fun login(@RequestBody request: LoginRequest): ResponseEntity<SimpleAuthResult> {
-        logger.info("Login request for email: ${request.email}")
+        logger.debug("Login request for email: ${request.email}")
+        logger.debug("Password hash given: ${request.passwordHash}")
         return try {
             val user = authService.loginUser(request.email, request.passwordHash)
             logger.info("Login successful for: ${request.email}")
-            ResponseEntity.ok(SimpleAuthResult(user.email, user.fullName, true))
+            ResponseEntity.ok(SimpleAuthResult(user.id, user.email, user.fullName))
         } catch (e: IllegalArgumentException) {
             logger.warn("Login failed: ${e.message}")
             ResponseEntity.badRequest().body(null)
@@ -51,7 +53,7 @@ class AuthController(private val authService: AuthService) {
 
     @PostMapping("/verify")
     fun verifyCode(@RequestBody request: VerifyCodeRequest): ResponseEntity<AccessTokenResult> {
-        logger.info("Verification request for email: ${request.email}")
+        logger.debug("Verification request for email: ${request.email} with code ${request.code}")
         return try {
             val token = authService.verifyCodeAndGetToken(request.email, request.code)
             logger.info("Verification successful for: ${request.email}")
@@ -77,14 +79,14 @@ class AuthController(private val authService: AuthService) {
 
     @PostMapping("/logout")
     fun logout(@RequestBody request: ValidateTokenRequest): ResponseEntity<String> {
-        logger.info("Logout request")
+        logger.debug("Logout request")
         authService.logoutUser(request.token)
         return ResponseEntity.ok("Logged out successfully")
     }
 
     @GetMapping("/users")
     fun getAllUsers(@RequestBody request: HttpRequest): ResponseEntity<List<SimpleUserNameAndEmail>> {
-        logger.info("Get All Users request")
+        logger.debug("Get All Users request")
         val users = authService.getAllUsers()
         return ResponseEntity.ok(users.map { SimpleUserNameAndEmail(it.email, it.fullName) })
     }

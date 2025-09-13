@@ -4,8 +4,7 @@ data class User(
     val id: String,
     val email: String,
     val hashedPassword: String,
-    val fullName: String,
-    val emailVerified: Boolean = false
+    val fullName: String
 )
 
 data class Token(

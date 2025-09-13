@@ -3,8 +3,6 @@ package com.ledger.app.dtos
 data class FileMetadataDto(
     val id: String,
     val originalFileName: String,
-    val actualFileName: String,
-    val filePath: String,
     val fileSize: Long,
     val contentType: String?,
     val uploadedAt: Long,
@@ -20,7 +18,7 @@ data class FileListResponse(
 )
 
 data class FileInfoDTO(
-    val id: String,      // Added file ID
+    val id: String,
     val name: String,
     val size: Long,
     val wasDeleted: Boolean

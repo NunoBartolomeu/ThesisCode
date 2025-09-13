@@ -37,7 +37,7 @@ class FileServiceSpring(
         logger = ColorLogger("FilesService", RGB.BLUE, logLevelStr)
 
         if (ledgerService.getLedger(FILES_LEDGER) == null) {
-            ledgerService.createLedger(FILES_LEDGER, 2, HashProvider.getDefaultAlgorithm())
+            ledgerService.createLedger(FILES_LEDGER, 3, HashProvider.getDefaultAlgorithm())
         }
     }
 

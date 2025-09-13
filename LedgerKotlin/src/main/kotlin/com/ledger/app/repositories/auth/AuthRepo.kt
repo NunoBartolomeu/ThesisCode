@@ -8,5 +8,4 @@ interface AuthRepo {
     fun getUserByEmail(email: String): User?
     fun getAllUsers(): List<User>
     fun updateUser(user: User): Boolean
-    fun verifyEmail(userId: String): Boolean
 }

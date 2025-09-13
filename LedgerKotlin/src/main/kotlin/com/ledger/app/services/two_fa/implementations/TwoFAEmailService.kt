@@ -19,7 +19,7 @@ class TwoFAEmailService (
 
     companion object {
         data class VerificationCode(val code: String, val timestamp: Long, val service: String)
-        private const val EXPIRATION_TIME_MS = 5 * 60 * 1000
+        private const val EXPIRATION_TIME_MS = 5 * 60 * 1000 // 5 minutes
     }
 
     @Value("\${app.logLevel}")
@@ -33,23 +33,7 @@ class TwoFAEmailService (
 
     private val codes = ConcurrentHashMap<String, VerificationCode>()
 
-    override fun sendCode(email: String, service: String): Boolean {
-        if (test) {
-            logger.debug("2FA is in TEST mode, code not actually sent")
-            return true
-        }
-
-        val code = generateCode()
-        val subject = "Your Verification Code"
-        val body = createHtmlEmail(code, EXPIRATION_TIME_MS / 60 / 1000)
-
-        if (emailSender.send(email, subject, body)) {
-            codes[email] = VerificationCode(code, System.currentTimeMillis(), service)
-            logger.debug("Sent code $code to email $email")
-            return true
-        }
-        return false
-    }
+    private fun generateCode() = String.format("%06d", Random.nextInt(1000000))
 
     private fun createHtmlEmail(code: String, expirationMinutes: Int): String {
         return """
@@ -69,6 +53,24 @@ class TwoFAEmailService (
         </body>
         </html>
     """.trimIndent()
+    }
+
+    override fun sendCode(email: String, service: String): Boolean {
+        if (test) {
+            logger.debug("2FA is in TEST mode, code not actually sent")
+            return true
+        }
+
+        val code = generateCode()
+        val subject = "Your Verification Code"
+        val body = createHtmlEmail(code, EXPIRATION_TIME_MS / 60 / 1000) // In minutes
+
+        if (emailSender.send(email, subject, body)) {
+            codes[email] = VerificationCode(code, System.currentTimeMillis(), service)
+            logger.debug("Sent code $code to email $email")
+            return true
+        }
+        return false
     }
 
     override fun verifyCode(email: String, code: String, service: String): Boolean {
@@ -96,5 +98,4 @@ class TwoFAEmailService (
         }
     }
 
-    private fun generateCode() = String.format("%06d", Random.nextInt(1000000))
 }
