@@ -11,8 +11,8 @@ export class PKIService {
   private baseUrl = "/certificate";
   private fetcher = new Fetcher();
 
-  async createCertificate(userId: string, publicKey: string): Promise<ApiResponse<CertificateResponse>> {
-    const request: CreateCertificateRequest = { userId, publicKey };
+  async createCertificate(userId: string, publicKey: string, algorithm: string): Promise<ApiResponse<CertificateResponse>> {
+    const request: CreateCertificateRequest = { userId, publicKey, algorithm };
     return this.fetcher.request<CertificateResponse>(`${this.baseUrl}/create`, {
       method: 'POST',
       body: request,

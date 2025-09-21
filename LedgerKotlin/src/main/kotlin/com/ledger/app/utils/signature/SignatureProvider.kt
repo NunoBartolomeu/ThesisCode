@@ -23,7 +23,7 @@ object SignatureProvider {
     fun dataToString(data: ByteArray): String = String(data)
     fun dataToByteArray(data: String): ByteArray = data.toByteArray()
 
-    private fun resolve(name: String?): SignatureAlgorithm =
+    fun resolve(name: String?): SignatureAlgorithm =
         algorithms[name ?: algorithms.keys.first()]
             ?: throw IllegalArgumentException("Unsupported signature algorithm: $name")
 

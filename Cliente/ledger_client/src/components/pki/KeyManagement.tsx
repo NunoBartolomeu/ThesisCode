@@ -107,7 +107,7 @@ export function PKIManagement({ onGoBack }: PKIManagementProps) {
     try {
       if (pemUploadType === 'keys') {
         // For keys, we expect both private and public key in the same file or separate calls
-        // This is a simplified version - in practice you'd handle separate files
+        // This is a simplified version - in practice it would handle separate files
         const result = importKeyPairFromPEM(pemContent, pemContent);
         if (result.success) {
           setPemUploadType(null);

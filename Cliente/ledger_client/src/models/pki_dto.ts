@@ -1,7 +1,8 @@
 // Request DTOs
 export interface CreateCertificateRequest {
   userId: string;
-  publicKey: string; // Base64 encoded public key
+  publicKey: string; // Hex encoded public key
+  algorithm: string;
 }
 
 export interface VerifyCertificateRequest {
@@ -22,12 +23,12 @@ export interface CertificateDetails {
 
 // Response DTOs
 export interface CertificateResponse {
-  details: CertificateDetails;
+  certificate: CertificateDetails;
   userId: string;
 }
 
 export interface SystemCertificateResponse {
-  details: CertificateDetails;
+  certificate: CertificateDetails;
   userId: string; // for consistency, system ID like "ledger_system"
 }
 

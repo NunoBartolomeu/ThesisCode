@@ -58,7 +58,6 @@ class LedgerRepoJDBC(
                     CREATE TABLE IF NOT EXISTS entries (
                         id VARCHAR PRIMARY KEY,
                         ledger_name VARCHAR NOT NULL REFERENCES ledgers(name) ON DELETE CASCADE,
-                        page_num INT,
                         timestamp BIGINT NOT NULL,
                         content TEXT NOT NULL,
                         hash VARCHAR NOT NULL,
@@ -99,7 +98,7 @@ class LedgerRepoJDBC(
                 // Entries in pages
                 st.execute("""
                     CREATE TABLE IF NOT EXISTS page_entries (
-                        ledger_name VARCHAR NOT NULL,
+                        ledger_name VARCHAR NOT NULL REFERENCES ledgers(name) ON DELETE CASCADE,
                         page_num INT NOT NULL,
                         entry_id VARCHAR NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
                         PRIMARY KEY (ledger_name, page_num, entry_id)
@@ -238,15 +237,14 @@ class LedgerRepoJDBC(
     override fun createEntry(entry: Entry) {
         getConnection().use { conn ->
             conn.prepareStatement(
-                "INSERT INTO entries (id, ledger_name, page_num, timestamp, content, hash, keywords) VALUES (?,?,?,?,?,?,?)"
+                "INSERT INTO entries (id, ledger_name, timestamp, content, hash, keywords) VALUES (?,?,?,?,?,?)"
             ).use { ps ->
                 ps.setString(1, entry.id)
                 ps.setString(2, entry.ledgerName)
-                ps.setObject(3, entry.pageNum)
-                ps.setLong(4, entry.timestamp)
-                ps.setString(5, entry.content)
-                ps.setString(6, entry.hash)
-                ps.setObject(7, toJsonb(entry.keywords))
+                ps.setLong(3, entry.timestamp)
+                ps.setString(4, entry.content)
+                ps.setString(5, entry.hash)
+                ps.setObject(6, toJsonb(entry.keywords))
                 ps.executeUpdate()
             }
 
@@ -292,7 +290,7 @@ class LedgerRepoJDBC(
 
     override fun readEntry(entryId: String): Entry? = getConnection().use { conn ->
         conn.prepareStatement(
-            "SELECT id, ledger_name, page_num, timestamp, content, hash, keywords FROM entries WHERE id=?"
+            "SELECT id, ledger_name, timestamp, content, hash, keywords FROM entries WHERE id=?"
         ).use { ps ->
             ps.setString(1, entryId)
             val rs = ps.executeQuery()
@@ -353,13 +351,11 @@ class LedgerRepoJDBC(
             }
 
             // page_num may be NULL
-            val pageNum: Int? = run {
-                val obj = rs.getObject("page_num")
-                when (obj) {
-                    null -> null
-                    is Int -> obj
-                    else -> rs.getInt("page_num").let { if (rs.wasNull()) null else it }
-                }
+            var pageNum: Int? = null
+            conn.prepareStatement("select page_num from page_entries where entry_id=?").use { ps2 ->
+                ps2.setString(1, entryId)
+                val rs2 = ps2.executeQuery()
+                while (rs2.next()) pageNum = rs2.getInt("page_num")
             }
 
             Entry(
@@ -381,14 +377,13 @@ class LedgerRepoJDBC(
 
     override fun updateEntry(entry: Entry) {
         getConnection().use { conn ->
-            // Update content, pageNum, and keywords
+            // Update content and keywords
             conn.prepareStatement(
-                "UPDATE entries SET content=?, page_num=?, keywords=? WHERE id=?"
+                "UPDATE entries SET content=?, keywords=? WHERE id=?"
             ).use { ps ->
                 ps.setString(1, entry.content)
-                ps.setObject(2, entry.pageNum)
-                ps.setObject(3, toJsonb(entry.keywords))
-                ps.setString(4, entry.id)
+                ps.setObject(2, toJsonb(entry.keywords))
+                ps.setString(3, entry.id)
                 ps.executeUpdate()
             }
 

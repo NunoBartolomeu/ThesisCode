@@ -1,15 +1,21 @@
 export class PKIStorageService {
   private static PKI_PRIVATE_KEY = 'pki_private';
   private static PKI_PUBLIC_KEY = 'pki_public';
+  private static PKI_ALGORITHM = 'pki_algorithm';
   private static PKI_USER_CERTIFICATE_PREFIX = 'pki_user_cert_';
   private static PKI_SYSTEM_CERTIFICATE = 'pki_system_cert';
 
-  // --- Key Pair ---
-  static savePKIKeyPair(privateKeyStr: string, publicKeyStr: string): void {
+  // --- Key Pair with Algorithm ---
+  static savePKIKeyPair(privateKeyHex: string, publicKeyHex: string, algorithm: string): void {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(this.PKI_PRIVATE_KEY, privateKeyStr);
-      localStorage.setItem(this.PKI_PUBLIC_KEY, publicKeyStr);
+      const cleanPrivateKey = privateKeyHex.toLowerCase().replace(/[^0-9a-f]/g, '');
+      const cleanPublicKey = publicKeyHex.toLowerCase().replace(/[^0-9a-f]/g, '');
+      
+      localStorage.setItem(this.PKI_PRIVATE_KEY, cleanPrivateKey);
+      localStorage.setItem(this.PKI_PUBLIC_KEY, cleanPublicKey);
+      localStorage.setItem(this.PKI_ALGORITHM, algorithm);
+    
     } catch (e) {
       console.error('Failed to save PKI key pair:', e);
     }
@@ -18,7 +24,8 @@ export class PKIStorageService {
   static getPKIPrivateKey(): string | null {
     if (typeof window === 'undefined') return null;
     try {
-      return localStorage.getItem(this.PKI_PRIVATE_KEY);
+      const key = localStorage.getItem(this.PKI_PRIVATE_KEY);
+      return key ? key.toLowerCase() : null; // Ensure hex is lowercase
     } catch (e) {
       console.error('Failed to get private key:', e);
       return null;
@@ -28,9 +35,20 @@ export class PKIStorageService {
   static getPKIPublicKey(): string | null {
     if (typeof window === 'undefined') return null;
     try {
-      return localStorage.getItem(this.PKI_PUBLIC_KEY);
+      const key = localStorage.getItem(this.PKI_PUBLIC_KEY);
+      return key ? key.toLowerCase() : null; // Ensure hex is lowercase
     } catch (e) {
       console.error('Failed to get public key:', e);
+      return null;
+    }
+  }
+
+  static getPKIAlgorithm(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem(this.PKI_ALGORITHM);
+    } catch (e) {
+      console.error('Failed to get PKI algorithm:', e);
       return null;
     }
   }
@@ -40,12 +58,16 @@ export class PKIStorageService {
     try {
       localStorage.removeItem(this.PKI_PRIVATE_KEY);
       localStorage.removeItem(this.PKI_PUBLIC_KEY);
+      localStorage.removeItem(this.PKI_ALGORITHM);
     } catch (e) {
       console.error('Failed to clear PKI key pair:', e);
     }
   }
 
-  // --- User Certificate ---
+  static validateHexString(hex: string): boolean {
+    return /^[0-9a-fA-F]+$/.test(hex) && hex.length % 2 === 0;
+  }
+
   static savePKICertificate(userId: string, certificate: object): void {
     if (typeof window === 'undefined') return;
     try {

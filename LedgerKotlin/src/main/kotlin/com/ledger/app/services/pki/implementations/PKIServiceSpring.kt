@@ -46,7 +46,10 @@ class PKIServiceSpring(
 
     override fun getUserCertificate(userId: String): Certificate? = pkiRepo.loadUserCertificate(userId)
 
-    override fun associatePublicKeyToUser(userId: String, publicKey: PublicKey): Certificate {
+    override fun associatePublicKeyToUser(userId: String, hexPublicKey: String, algorithm: String): Certificate {
+        val publicKeyBytes = SignatureProvider.keyOrSigToByteArray(hexPublicKey)
+        val publicKey = SignatureProvider.resolve(algorithm).bytesToPublicKey(publicKeyBytes)
+
         val userCertificate = createUserCertificate(userId, publicKey)
         pkiRepo.saveUserCertificate(userId, userCertificate)
         return userCertificate

@@ -8,6 +8,6 @@ interface PublicKeyInfrastructureService {
     fun getSystemKeyPair(): KeyPair
     fun getSystemCertificate(): Certificate
     fun getUserCertificate(userId: String): Certificate?
-    fun associatePublicKeyToUser(userId: String, publicKey: PublicKey): Certificate
+    fun associatePublicKeyToUser(userId: String, hexPublicKey: String, algorithm: String): Certificate
     fun verifyCertificate(userId: String, certificate: Certificate): Boolean
 }

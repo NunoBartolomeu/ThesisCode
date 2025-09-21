@@ -163,11 +163,10 @@ class SignatureProvider {
     return encoder.encode(data);
   }
 
-  private resolve(name?: string): SignatureAlgorithm {
-    const algorithmName = name || Array.from(this.algorithms.keys())[0];
-    const algorithm = this.algorithms.get(algorithmName);
+  private resolve(name: string): SignatureAlgorithm {
+    const algorithm = this.algorithms.get(name);
     if (!algorithm) {
-      throw new Error(`Unsupported signature algorithm: ${algorithmName}`);
+      throw new Error(`Unsupported signature algorithm: ${name}`);
     }
     return algorithm;
   }
@@ -181,14 +180,14 @@ class SignatureProvider {
     return arrayBuffer;
   }
 
-  async sign(data: string, privateKey: CryptoKey, algorithm?: string): Promise<Uint8Array> {
+  async sign(data: string, privateKey: CryptoKey, algorithm: string): Promise<Uint8Array> {
     const dataArray = this.dataToByteArray(data);
     const dataBuffer = this.toArrayBuffer(dataArray);
     const result = await this.resolve(algorithm).sign(dataBuffer, privateKey);
     return new Uint8Array(result);
   }
 
-  async signWithEncodedKey(data: string, encodedPrivateKey: Uint8Array, algorithm?: string): Promise<Uint8Array> {
+  async signWithEncodedKey(data: string, encodedPrivateKey: Uint8Array, algorithm: string): Promise<Uint8Array> {
     const algo = this.resolve(algorithm);
     const keyBuffer = this.toArrayBuffer(encodedPrivateKey);
     const privateKey = await algo.bytesToPrivateKey(keyBuffer);
@@ -198,18 +197,18 @@ class SignatureProvider {
     return new Uint8Array(result);
   }
 
-  async signWithHexKey(data: string, hexPrivateKey: string, algorithm?: string): Promise<Uint8Array> {
+  async signWithHexKey(data: string, hexPrivateKey: string, algorithm: string): Promise<Uint8Array> {
     return await this.signWithEncodedKey(data, this.keyOrSigToByteArray(hexPrivateKey), algorithm);
   }
 
-  async verify(data: string, signature: Uint8Array, publicKey: CryptoKey, algorithm?: string): Promise<boolean> {
+  async verify(data: string, signature: Uint8Array, publicKey: CryptoKey, algorithm: string): Promise<boolean> {
     const dataArray = this.dataToByteArray(data);
     const dataBuffer = this.toArrayBuffer(dataArray);
     const sigBuffer = this.toArrayBuffer(signature);
     return await this.resolve(algorithm).verify(dataBuffer, sigBuffer, publicKey);
   }
 
-  async verifyWithEncodedKey(data: string, signature: Uint8Array, encodedPublicKey: Uint8Array, algorithm?: string): Promise<boolean> {
+  async verifyWithEncodedKey(data: string, signature: Uint8Array, encodedPublicKey: Uint8Array, algorithm: string): Promise<boolean> {
     const algo = this.resolve(algorithm);
     const keyBuffer = this.toArrayBuffer(encodedPublicKey);
     const publicKey = await algo.bytesToPublicKey(keyBuffer);
@@ -219,7 +218,7 @@ class SignatureProvider {
     return await algo.verify(dataBuffer, sigBuffer, publicKey);
   }
 
-  async verifyWithHex(data: string, hexSignature: string, hexPublicKey: string, algorithm?: string): Promise<boolean> {
+  async verifyWithHex(data: string, hexSignature: string, hexPublicKey: string, algorithm: string): Promise<boolean> {
     return await this.verifyWithEncodedKey(
       data,
       this.keyOrSigToByteArray(hexSignature),
@@ -228,7 +227,7 @@ class SignatureProvider {
     );
   }
 
-  async generateKeyPair(algorithm?: string): Promise<CryptoKeyPair> {
+  async generateKeyPair(algorithm: string): Promise<CryptoKeyPair> {
     return await this.resolve(algorithm).generateKeyPair();
   }
 

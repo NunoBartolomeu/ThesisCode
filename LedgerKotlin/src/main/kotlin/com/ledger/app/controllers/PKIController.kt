@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.security.KeyFactory
+import java.security.PublicKey
 import java.security.cert.Certificate
 import java.security.cert.CertificateFactory
 import java.security.spec.X509EncodedKeySpec
@@ -32,8 +33,10 @@ class PKIController(
     fun createCertificate(@RequestBody request: CreateCertificateRequest): ResponseEntity<CertificateResponse> {
         logger.debug("Create certificate request for userId: ${request.userId}")
         return try {
-            val publicKey = decodePublicKey(request.publicKey)
-            val certificate = pkiService.associatePublicKeyToUser(request.userId, publicKey)
+            logger.debug("Request: $request")
+            logger.debug("Public Key: ${request.publicKey}")
+            logger.debug("Algorithm: ${request.algorithm}")
+            val certificate = pkiService.associatePublicKeyToUser(request.userId, request.publicKey, request.algorithm)
 
             logger.info("Certificate created successfully for userId: ${request.userId}")
             ResponseEntity.ok(CertificateResponse(extractCertificateDetails(certificate), request.userId))
@@ -87,13 +90,6 @@ class PKIController(
             logger.warn("Error retrieving system certificate, error: ${e.message}")
             ResponseEntity.badRequest().body(null)
         }
-    }
-
-    private fun decodePublicKey(publicKeyBase64: String): java.security.PublicKey {
-        val keyBytes = Base64.getDecoder().decode(publicKeyBase64)
-        val keySpec = X509EncodedKeySpec(keyBytes)
-        val keyFactory = KeyFactory.getInstance("RSA")
-        return keyFactory.generatePublic(keySpec)
     }
 
     private fun decodeCertificate(certificateBase64: String): Certificate {

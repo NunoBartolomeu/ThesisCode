@@ -3,7 +3,8 @@ package com.ledger.app.dtos
 // Request DTOs
 data class CreateCertificateRequest(
     val userId: String,
-    val publicKey: String // Base64 encoded public key
+    val publicKey: String, // Hex encoded public key
+    val algorithm: String
 )
 
 data class VerifyCertificateRequest(

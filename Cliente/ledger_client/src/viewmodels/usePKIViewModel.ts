@@ -9,6 +9,7 @@ import { CertificateDetails } from '@/models/pki_dto';
 interface KeyPairHex {
   privateKey: string;
   publicKey: string;
+  algorithm: string;
 }
 
 export function usePKIViewModel() {
@@ -24,13 +25,18 @@ export function usePKIViewModel() {
   useEffect(() => {
     const privateKey = PKIStorageService.getPKIPrivateKey();
     const publicKey = PKIStorageService.getPKIPublicKey();
+    const algorithm = PKIStorageService.getPKIAlgorithm();
     
-    if (privateKey && publicKey) {
-      setKeyPair({ privateKey, publicKey });
+    if (privateKey && publicKey && algorithm) {
+      setKeyPair({ privateKey, publicKey, algorithm });
     }
   }, []);
 
   const clearErrors = useCallback(() => setErrors({}), []);
+
+  const ensureHexFormat = (data: string): string => {
+    return data.toLowerCase().replace(/[^0-9a-f]/g, '');
+  };
 
   // PEM conversion utilities
   const wrapPEM = (hexString: string, type: 'PUBLIC KEY' | 'PRIVATE KEY' | 'CERTIFICATE') => {
@@ -58,24 +64,29 @@ export function usePKIViewModel() {
   };
 
   // Key pair operations
-  const generateKeyPair = useCallback(async (algorithmName?: string) => {
+  const generateKeyPair = useCallback(async () => {
     setLoading(true);
     clearErrors();
+    let algorithmName = signatureProvider.getDefaultAlgorithm()
 
     try {
       const cryptoKeyPair = await signatureProvider.generateKeyPair(algorithmName);
       
-      // Export keys to hex
+      // Export keys to hex - ensure they're in proper hex format
       const exportedPub = await crypto.subtle.exportKey('spki', cryptoKeyPair.publicKey);
       const exportedPriv = await crypto.subtle.exportKey('pkcs8', cryptoKeyPair.privateKey);
 
-      const publicKeyHex = signatureProvider.keyOrSigToString(new Uint8Array(exportedPub));
-      const privateKeyHex = signatureProvider.keyOrSigToString(new Uint8Array(exportedPriv));
+      const publicKeyHex = ensureHexFormat(signatureProvider.keyOrSigToString(new Uint8Array(exportedPub)));
+      const privateKeyHex = ensureHexFormat(signatureProvider.keyOrSigToString(new Uint8Array(exportedPriv)));
 
-      const newKeyPair = { privateKey: privateKeyHex, publicKey: publicKeyHex };
+      const newKeyPair = { 
+        privateKey: privateKeyHex, 
+        publicKey: publicKeyHex, 
+        algorithm: algorithmName 
+      };
 
-      // Save to storage
-      PKIStorageService.savePKIKeyPair(privateKeyHex, publicKeyHex);
+      // Save to storage with algorithm
+      PKIStorageService.savePKIKeyPair(privateKeyHex, publicKeyHex, algorithmName);
       setKeyPair(newKeyPair);
 
       return { success: true, data: newKeyPair };
@@ -88,10 +99,23 @@ export function usePKIViewModel() {
     }
   }, []);
 
-  const importKeyPairFromHex = useCallback((privateKeyHex: string, publicKeyHex: string) => {
+  const importKeyPairFromHex = useCallback((privateKeyHex: string, publicKeyHex: string, algorithm: string) => {
     try {
-      const newKeyPair = { privateKey: privateKeyHex, publicKey: publicKeyHex };
-      PKIStorageService.savePKIKeyPair(privateKeyHex, publicKeyHex);
+      // Validate hex format
+      const cleanPrivateKey = ensureHexFormat(privateKeyHex);
+      const cleanPublicKey = ensureHexFormat(publicKeyHex);
+      
+      if (!PKIStorageService.validateHexString(cleanPrivateKey) || !PKIStorageService.validateHexString(cleanPublicKey)) {
+        throw new Error('Invalid hex format');
+      }
+
+      const newKeyPair = { 
+        privateKey: cleanPrivateKey, 
+        publicKey: cleanPublicKey, 
+        algorithm 
+      };
+      
+      PKIStorageService.savePKIKeyPair(cleanPrivateKey, cleanPublicKey, algorithm);
       setKeyPair(newKeyPair);
       return { success: true };
     } catch (err: any) {
@@ -105,7 +129,8 @@ export function usePKIViewModel() {
     try {
       const privateKeyHex = unwrapPEM(privateKeyPEM);
       const publicKeyHex = unwrapPEM(publicKeyPEM);
-      return importKeyPairFromHex(privateKeyHex, publicKeyHex);
+      let algorithm = signatureProvider.getDefaultAlgorithm() 
+      return importKeyPairFromHex(privateKeyHex, publicKeyHex, algorithm);
     } catch (err: any) {
       const error = { general: 'Invalid PEM format: ' + err.message };
       setErrors(error);
@@ -118,7 +143,8 @@ export function usePKIViewModel() {
     
     return {
       privateKey: wrapPEM(keyPair.privateKey, 'PRIVATE KEY'),
-      publicKey: wrapPEM(keyPair.publicKey, 'PUBLIC KEY')
+      publicKey: wrapPEM(keyPair.publicKey, 'PUBLIC KEY'),
+      algorithm: keyPair.algorithm
     };
   }, [keyPair]);
 
@@ -140,15 +166,22 @@ export function usePKIViewModel() {
       return { success: false, errors: error };
     }
 
+    if (!keyPair.algorithm) {
+      const error = { general: 'Algorithm information missing from key pair' };
+      setErrors(error);
+      return { success: false, errors: error };
+    }
+
     setLoading(true);
     clearErrors();
 
     try {
-      const result = await pkiService.createCertificate(userId, keyPair.publicKey);
+      // Pass the algorithm along with the public key
+      const result = await pkiService.createCertificate(userId, keyPair.publicKey, keyPair.algorithm);
       
       if (result.success && result.data) {
-        PKIStorageService.savePKICertificate(userId, result.data.details);
-        setUserCertificate(result.data.details);
+        PKIStorageService.savePKICertificate(userId, result.data.certificate);
+        setUserCertificate(result.data.certificate);
       } else {
         setErrors(result.errors || { general: result.message || 'Certificate creation failed' });
       }
@@ -178,8 +211,8 @@ export function usePKIViewModel() {
       // Fetch from server
       const result = await pkiService.getUserCertificate(userId);
       if (result.success && result.data) {
-        PKIStorageService.savePKICertificate(userId, result.data.details);
-        setUserCertificate(result.data.details);
+        PKIStorageService.savePKICertificate(userId, result.data.certificate);
+        setUserCertificate(result.data.certificate);
       } else {
         setErrors(result.errors || { general: 'Failed to fetch user certificate' });
       }
@@ -204,8 +237,8 @@ export function usePKIViewModel() {
       // Fetch from server
       const result = await pkiService.getSystemCertificate();
       if (result.success && result.data) {
-        PKIStorageService.saveSystemCertificate(result.data.details);
-        setSystemCertificate(result.data.details);
+        PKIStorageService.saveSystemCertificate(result.data.certificate);
+        setSystemCertificate(result.data.certificate);
       } else {
         setErrors(result.errors || { general: 'Failed to fetch system certificate' });
       }
@@ -223,14 +256,13 @@ export function usePKIViewModel() {
     try {
       const certificateHex = unwrapPEM(certificatePEM);
       
-      // Create certificate details object (you may need to parse more details from the cert)
       const certificate: CertificateDetails = {
         certificateBase64: certificateHex,
-        serialNumber: '', // Would need to parse from cert
-        issuer: '', // Would need to parse from cert
-        subject: '', // Would need to parse from cert
-        validFrom: '', // Would need to parse from cert
-        validTo: '', // Would need to parse from cert
+        serialNumber: '',
+        issuer: '',
+        subject: '',
+        validFrom: '',
+        validTo: '',
         publicKeyAlgorithm: '',
         signatureAlgorithm: ''
       };
@@ -258,8 +290,8 @@ export function usePKIViewModel() {
     }
 
     try {
-      const signature = signatureProvider.keyOrSigToByteArray(signatureHex);
-      return await signatureProvider.verifyWithHex(data, signatureHex, keyPair.publicKey, algorithm);
+      const alg = algorithm || keyPair.algorithm;
+      return await signatureProvider.verifyWithHex(data, signatureHex, keyPair.publicKey, alg);
     } catch (err: any) {
       throw new Error('Verification failed: ' + err.message);
     }
@@ -271,7 +303,8 @@ export function usePKIViewModel() {
     }
 
     try {
-      const signature = await signatureProvider.signWithHexKey(data, keyPair.privateKey, algorithm);
+      const alg = algorithm || keyPair.algorithm;
+      const signature = await signatureProvider.signWithHexKey(data, keyPair.privateKey, alg);
       return signatureProvider.keyOrSigToString(signature);
     } catch (err: any) {
       throw new Error('Signing failed: ' + err.message);
@@ -282,10 +315,9 @@ export function usePKIViewModel() {
   const hasKeyPair = () => !!keyPair;
   const hasUserCertificate = () => !!userCertificate;
   const hasSystemCertificate = () => !!systemCertificate;
+  const getKeyPairAlgorithm = () => keyPair?.algorithm;
 
   const getPublicKeyFromCertificate = (certificate: CertificateDetails): string => {
-    // In a real implementation, you'd extract the public key from the certificate
-    // For now, return the certificate base64 (this should be improved)
     return certificate.certificateBase64;
   };
 
@@ -319,6 +351,7 @@ export function usePKIViewModel() {
     hasKeyPair,
     hasUserCertificate,
     hasSystemCertificate,
+    getKeyPairAlgorithm,
     getPublicKeyFromCertificate,
     clearErrors
   };

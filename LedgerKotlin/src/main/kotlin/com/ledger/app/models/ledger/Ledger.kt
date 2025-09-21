@@ -170,7 +170,7 @@ data class Ledger(
             throw Exception("Requester is not a participant of the entry")
         }
 
-        val proof = getInclusionProof(entry)
+        val proof = if (entry.pageNum == null) emptyList() else getInclusionProof(entry)
         val timestamp = System.currentTimeMillis()
 
         val receiptData = listOf(
