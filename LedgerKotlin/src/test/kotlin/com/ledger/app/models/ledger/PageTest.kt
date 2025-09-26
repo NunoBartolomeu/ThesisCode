@@ -153,9 +153,9 @@ class PageTest {
         val h1 = entries[0].hash
         val h2 = entries[1].hash
         val h3 = entries[2].hash
-        val pair1 = HashProvider.toHashString(HashProvider.hash("$h1|$h2", hashAlgorithm))
-        val pair2 = HashProvider.toHashString(HashProvider.hash("$h3|$h3", hashAlgorithm))
-        val expectedRoot = HashProvider.toHashString(HashProvider.hash("$pair1|$pair2", hashAlgorithm))
+        val pair1 = HashProvider.toHexString(HashProvider.hash("$h1|$h2", hashAlgorithm))
+        val pair2 = HashProvider.toHexString(HashProvider.hash("$h3|$h3", hashAlgorithm))
+        val expectedRoot = HashProvider.toHexString(HashProvider.hash("$pair1|$pair2", hashAlgorithm))
 
         assertEquals(expectedRoot, merkleRoot)
     }

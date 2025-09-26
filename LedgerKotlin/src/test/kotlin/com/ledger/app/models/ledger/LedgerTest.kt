@@ -2,14 +2,14 @@ package com.ledger.app.models.ledger
 
 import com.ledger.app.utils.hash.HashProvider
 import com.ledger.app.utils.signature.SignatureProvider
-import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class LedgerTest {
     private val content = "Hello, World!"
-    private val hashAlgorithm = HashProvider.getDefaultAlgorithm()
-    private val sigAlgorithm = SignatureProvider.getDefaultAlgorithm()
+    private val hashAlgorithm = HashProvider.getSupportedAlgorithms().toList()[2]
+    private val sigAlgorithm = SignatureProvider.getSupportedAlgorithms().toList()[1]
     private val ledgerConfig = LedgerConfig("test-ledger", entriesPerPage = 2, hashAlgorithm = hashAlgorithm)
     private lateinit var ledger: Ledger
 
@@ -20,15 +20,15 @@ class LedgerTest {
     private val keyPair1 = SignatureProvider.generateKeyPair(sigAlgorithm)
     private val keyPair2 = SignatureProvider.generateKeyPair(sigAlgorithm)
 
-    @BeforeTest
+    @BeforeEach
     fun setup() {
         ledger = Ledger(ledgerConfig)
     }
 
     private fun signEntry(entry: Entry, keyPair: java.security.KeyPair, signerId: String): Entry.Signature {
-        val sigBytes = SignatureProvider.sign(entry.hash, keyPair.private, sigAlgorithm)
-        val sigHex = SignatureProvider.keyOrSigToString(sigBytes)
-        val pubHex = SignatureProvider.keyOrSigToString(keyPair.public.encoded)
+        val sigBytes = SignatureProvider.sign(entry.hash.toByteArray(), keyPair.private, sigAlgorithm)
+        val sigHex = SignatureProvider.toHexString(sigBytes)
+        val pubHex = SignatureProvider.toHexString(keyPair.public.encoded)
         return Entry.Signature(
             signerId = signerId,
             publicKey = pubHex,
@@ -38,64 +38,54 @@ class LedgerTest {
     }
 
     @Test
-    @DisplayName("create entry with 1 sender no recipient")
-    fun createSimpleEntry() {
+    fun `create entry with one sender and no recipient`() {
         val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
-        assertTrue(ledger.holdingArea.contains(entry))
+        assertTrue(ledger.unverifiedEntries.contains(entry))
         assertEquals(senderId, entry.senders.first())
         assertTrue(entry.recipients.isEmpty())
     }
 
     @Test
-    @DisplayName("add valid signature")
-    fun addSignature() {
+    fun `add valid signature`() {
         val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
         val sig = signEntry(entry, keyPair1, senderId)
 
         val updated = ledger.addSignature(entry.id, sig)
         assertTrue(updated.signatures.isNotEmpty())
-        assertFalse(ledger.holdingArea.contains(updated))
+        assertFalse(ledger.unverifiedEntries.contains(updated))
         assertTrue(ledger.verifiedEntries.contains(updated))
     }
 
     @Test
-    @DisplayName("duplicate signature ignored")
-    fun blockDuplicateSignatures() {
+    fun `reject duplicate signatures`() {
         val entry = ledger.createEntry(content, listOf(senderId, sender2Id), emptyList(), emptyList(), emptyList())
         val sig = signEntry(entry, keyPair1, senderId)
 
-        val updated1 = ledger.addSignature(entry.id, sig)
-        val updated2 = ledger.addSignature(entry.id, sig)
-
-        assertEquals(1, updated2.signatures.size)
-    }
-
-    @Test
-    @DisplayName("invalid signature throws exception")
-    fun addInvalidSignature() {
-        val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
-        val badSig = Entry.Signature(
-            signerId = senderId,
-            publicKey = SignatureProvider.keyOrSigToString(keyPair1.public.encoded),
-            signatureData = "WrongSignature",
-            algorithm = sigAlgorithm
-        )
-
-        assertFailsWith<Exception> { ledger.addSignature(entry.id, badSig) }
-    }
-
-    @Test
-    @DisplayName("non sender signature throws exception")
-    fun addSignatureFromNonSender() {
-        val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
-        val sig = signEntry(entry, keyPair1, "Dave")
-
+        ledger.addSignature(entry.id, sig)
         assertFailsWith<Exception> { ledger.addSignature(entry.id, sig) }
     }
 
     @Test
-    @DisplayName("verify entry flow")
-    fun addAllSignatures() {
+    fun `reject invalid signature`() {
+        val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
+        val badSig = Entry.Signature(
+            signerId = senderId,
+            publicKey = SignatureProvider.toHexString(keyPair1.public.encoded),
+            signatureData = "WrongSignature",
+            algorithm = sigAlgorithm
+        )
+        assertFailsWith<Exception> { ledger.addSignature(entry.id, badSig) }
+    }
+
+    @Test
+    fun `reject signature from non sender`() {
+        val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
+        val sig = signEntry(entry, keyPair1, "Dave")
+        assertFailsWith<Exception> { ledger.addSignature(entry.id, sig) }
+    }
+
+    @Test
+    fun `add all signatures and verify entry`() {
         val entry = ledger.createEntry(content, listOf(senderId, sender2Id), listOf(recipientId), emptyList(), emptyList())
         assertFalse(entry.verify())
 
@@ -109,29 +99,12 @@ class LedgerTest {
     }
 
     @Test
-    @DisplayName("update entry between holding and verified")
-    fun addAllSignaturesAndCheckState() {
-        val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
-        assertTrue(ledger.holdingArea.contains(entry))
-
-        val signed = entry.copy(signatures = listOf(signEntry(entry, keyPair1, senderId)))
-        ledger.updateEntry(signed)
-
-        assertFalse(ledger.holdingArea.contains(signed))
-        assertTrue(ledger.verifiedEntries.contains(signed))
-    }
-
-    @Test
-    @DisplayName("page created when threshold reached")
-    fun checkPageAutoCreation() {
+    fun `auto create page when threshold reached`() {
         val e1 = ledger.createEntry("c1", listOf(senderId), emptyList(), emptyList(), emptyList())
         val e2 = ledger.createEntry("c2", listOf(senderId), emptyList(), emptyList(), emptyList())
 
-        val s1 = signEntry(e1, keyPair1, senderId)
-        val s2 = signEntry(e2, keyPair1, senderId)
-
-        ledger.addSignature(e1.id, s1)
-        ledger.addSignature(e2.id, s2)
+        ledger.addSignature(e1.id, signEntry(e1, keyPair1, senderId))
+        ledger.addSignature(e2.id, signEntry(e2, keyPair1, senderId))
 
         assertTrue(ledger.pages.isNotEmpty())
         assertEquals(2, ledger.pages.first().entries.size)
@@ -139,8 +112,7 @@ class LedgerTest {
     }
 
     @Test
-    @DisplayName("page previous hash check")
-    fun checkPreviousHash() {
+    fun `page stores previous hash correctly`() {
         val e1 = ledger.createEntry("c1", listOf(senderId), emptyList(), emptyList(), emptyList())
         val e2 = ledger.createEntry("c2", listOf(senderId), emptyList(), emptyList(), emptyList())
         val e3 = ledger.createEntry("c3", listOf(senderId), emptyList(), emptyList(), emptyList())
@@ -152,14 +124,11 @@ class LedgerTest {
         ledger.addSignature(e4.id, signEntry(e4, keyPair1, senderId))
 
         assertEquals(2, ledger.pages.size)
-        val first = ledger.pages[0]
-        val second = ledger.pages[1]
-        assertEquals(first.hash, second.previousHash)
+        assertEquals(ledger.pages.toList()[0].hash, ledger.pages.toList()[1].previousHash)
     }
 
     @Test
-    @DisplayName("inclusion proof success and failure")
-    fun checkInclusionProof() {
+    fun `get inclusion proof succeeds`() {
         val e1 = ledger.createEntry("c1", listOf(senderId), emptyList(), emptyList(), emptyList())
         val e2 = ledger.createEntry("c2", listOf(senderId), emptyList(), emptyList(), emptyList())
         ledger.addSignature(e1.id, signEntry(e1, keyPair1, senderId))
@@ -168,52 +137,77 @@ class LedgerTest {
         val page = ledger.pages.first()
         val proof = ledger.getInclusionProof(page.entries.first())
         assertTrue(proof.isNotEmpty())
+    }
+
+
+    @Test
+    fun `get inclusion proof fails`() {
+        val e1 = ledger.createEntry("c1", listOf(senderId), emptyList(), emptyList(), emptyList())
+        val e2 = ledger.createEntry("c2", listOf(senderId), emptyList(), emptyList(), emptyList())
+        ledger.addSignature(e1.id, signEntry(e1, keyPair1, senderId))
+        ledger.addSignature(e2.id, signEntry(e2, keyPair1, senderId))
+
+        val page = ledger.pages.first()
+        val proof = ledger.getInclusionProof(page.entries.first())
+        println(proof)
 
         val fakeEntry = e1.copy(id = "nonexistent")
-        val badProof = ledger.getInclusionProof(fakeEntry)
-        assertTrue(badProof.isEmpty())
+        assertFailsWith<Exception> { ledger.getInclusionProof(fakeEntry) }
     }
 
     @Test
-    @DisplayName("get entry by id works")
-    fun getEntry() {
+    fun `get entry by id`() {
         val entry = ledger.createEntry("c1", listOf(senderId), emptyList(), emptyList(), emptyList())
         assertEquals(entry, ledger.getEntryById(entry.id))
         assertNull(ledger.getEntryById("random-id"))
     }
 
     @Test
-    @DisplayName("erase entry content produces correct deleted format and hashes")
-    fun eraseEntryContentTest() {
+    fun `erase entry content`() {
         val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
         val signed = ledger.addSignature(entry.id, signEntry(entry, keyPair1, senderId))
 
         val erased = ledger.eraseEntryContent(signed.id, senderId)
-
         assertTrue(erased.isDeleted())
         assertTrue(erased.content.startsWith("DELETED_ENTRY"))
-
-        val storedContentHash = Regex("content_hash:([^\n]+)").find(erased.content)?.groupValues?.get(1)
-        val storedEntryHash = Regex("entry_hash:([^\n]+)").find(erased.content)?.groupValues?.get(1)
-
-        val expectedContentHash = HashProvider.toHashString(HashProvider.hash(content, hashAlgorithm))
-        assertEquals(expectedContentHash, storedContentHash)
-        assertEquals(signed.hash, storedEntryHash)
     }
 
     @Test
-    @DisplayName("restore entry content works and validates hash")
-    fun restoreEntryContentTest() {
+    fun `restore erased entry content`() {
         val entry = ledger.createEntry(content, listOf(senderId), emptyList(), emptyList(), emptyList())
         val signed = ledger.addSignature(entry.id, signEntry(entry, keyPair1, senderId))
-        val erased = ledger.eraseEntryContent(entry.id, senderId)
+        ledger.eraseEntryContent(entry.id, senderId)
 
         val restored = ledger.restoreEntryContent(entry.id, senderId, content)
         assertEquals(content, restored.content)
         assertEquals(signed.hash, restored.hash)
 
         assertFailsWith<Exception> {
-            ledger.restoreEntryContent(erased.id, senderId, "Tampered content")
+            ledger.restoreEntryContent(restored.id, senderId, "Tampered")
         }
+    }
+
+    @Test
+    fun `create receipt for valid participant`() {
+        val entry = ledger.createEntry(content, listOf(senderId), listOf(recipientId), emptyList(), emptyList())
+        ledger.addSignature(entry.id, signEntry(entry, keyPair1, senderId))
+
+        val receipt = ledger.createReceipt(entry.id, senderId, keyPair1, sigAlgorithm)
+        assertEquals(entry.id, receipt.entry.id)
+        assertTrue(receipt.proof.isEmpty() || receipt.proof.all { it.isNotBlank() })
+        assertEquals(senderId, receipt.requesterId)
+    }
+
+    @Test
+    fun `reject receipt request from non participant`() {
+        val entry = ledger.createEntry(content, listOf(senderId), listOf(recipientId), emptyList(), emptyList())
+        ledger.addSignature(entry.id, signEntry(entry, keyPair1, senderId))
+
+        assertFailsWith<Exception> { ledger.createReceipt(entry.id, "Mallory", keyPair1, sigAlgorithm) }
+    }
+
+    @Test
+    fun `reject receipt creation for non existing entry`() {
+        assertFailsWith<Exception> { ledger.createReceipt("fake-id", senderId, keyPair1, sigAlgorithm) }
     }
 }

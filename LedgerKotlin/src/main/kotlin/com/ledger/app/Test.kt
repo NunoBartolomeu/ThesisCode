@@ -1,49 +1,100 @@
-import com.ledger.app.utils.hash.HashProvider
-import com.ledger.app.utils.signature.SignatureProvider
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+class Ledger<E>(
+    private val threshold: Int = 3,          // number of signs before moving from unverifiedEntries → verifiedEntries
+    private val entriesPerPage: Int = 10     // number of elements per page
+) {
+
+    private val unverifiedEntries = ConcurrentHashMap<String, Pair<Int, E>>() // A
+    private val verifiedEntries = ConcurrentHashMap<String, E>()             // B
+    val pages = ConcurrentLinkedQueue<List<E>>()                              // C
+
+    private val batchLock = ReentrantLock()
+
+    /** Add a new entry to unverifiedEntries */
+    fun add(key: String, value: E) {
+        unverifiedEntries.putIfAbsent(key, 0 to value)
+    }
+
+    /** Sign an existing entry in unverifiedEntries */
+    fun sign(key: String) {
+        unverifiedEntries.computeIfPresent(key) { _, entry ->
+            val (count, value) = entry
+            val newCount = count + 1
+            if (newCount >= threshold) {
+                // move to verifiedEntries
+                verifiedEntries[key] = value
+                tryCreatePageIfFull()
+                null // remove from unverifiedEntries
+            } else {
+                newCount to value
+            }
+        }
+    }
+
+    /** Remove an element manually from verifiedEntries */
+    fun removeVerified(key: String) {
+        verifiedEntries.remove(key)
+    }
+
+    /** Read an element from any stage */
+    fun read(key: String): E? {
+        return unverifiedEntries[key]?.second ?: verifiedEntries[key]
+    }
+
+    /** Attempt to create a page if verifiedEntries is full */
+    private fun tryCreatePageIfFull() {
+        if (verifiedEntries.size >= entriesPerPage) {
+            batchLock.withLock {
+                if (verifiedEntries.size >= entriesPerPage) {
+                    val snapshot = mutableListOf<E>()
+                    val keysToRemove = mutableListOf<String>()
+
+                    verifiedEntries.forEach { (key, value) ->
+                        if (snapshot.size < entriesPerPage) {
+                            snapshot.add(value)
+                            keysToRemove.add(key)
+                        }
+                    }
+
+                    keysToRemove.forEach { verifiedEntries.remove(it) }
+                    pages.add(snapshot.toList())
+                }
+            }
+        }
+    }
+
+    fun status() = Triple(unverifiedEntries.size, verifiedEntries.size, pages.size)
+}
 
 fun main() {
-    val text = "This is a test"
-    val hashProvider = HashProvider
-    val hash = hashProvider.hash(text, "SHA-256")
-    val hashedText = hashProvider.toHashString(hash)
-    val expectedHash = "c7be1ed902fb8dd4d48997c6452f5d7e509fbcdbe2808b16bcf4edce4c07d14e"
-    println("text: $text")
-    println("hashedText: $hashedText")
-    println("is correct? ${hashedText == expectedHash}")
+    val ledger = Ledger<Int>(threshold = 3, entriesPerPage = 10)
+    val executor = Executors.newFixedThreadPool(8)
 
-    println()
+    repeat(10000) { i ->
+        val key = "entry-$i"
+        executor.submit {
+            ledger.add(key, i)               // Add entry
+            repeat(3) { ledger.sign(key) }   // Sign entry 3 times to reach threshold
+        }
+    }
 
-    val rsa = SignatureProvider
-    val kp_rsa = rsa.generateKeyPair("RSA")
+    executor.shutdown()
+    executor.awaitTermination(5, TimeUnit.MINUTES)
 
-    val signature = rsa.sign(text, kp_rsa.private, "RSA")
-    val verified = rsa.verify(text, signature, kp_rsa.public, "RSA")
-    println("RSA verified: $verified")
-    val signature2 = rsa.sign(text, kp_rsa.private.encoded, "RSA")
-    val verified2 = rsa.verify(text, signature2, kp_rsa.public.encoded, "RSA")
-    println("RSA verified encoded: $verified2")
-    val signature3 = rsa.sign(text, rsa.keyOrSigToString(kp_rsa.private.encoded), "RSA")
-    val verified3 = rsa.verify(text, rsa.keyOrSigToString(signature3), rsa.keyOrSigToString(kp_rsa.public.encoded), "RSA")
-    println("RSA verified string: $verified3")
+    // Print results
+    val (unverified, verified, pages) = ledger.status()
+    println("Unverified entries: $unverified")
+    println("Verified entries: $verified")
+    println("Pages created: $pages")
 
-    println()
-
-    val ec = SignatureProvider
-    val ecKeyPair = ec.generateKeyPair("ECDSA")
-
-    val ecSignature1 = ec.sign(text, ecKeyPair.private,"ECDSA")
-    val ecVerified1 = ec.verify(text, ecSignature1, ecKeyPair.public,"ECDSA")
-    println("EC verified: $ecVerified1")
-
-    val ecSignature2 = ec.sign(text, ecKeyPair.private.encoded,"ECDSA")
-    val ecVerified2 = ec.verify(text, ecSignature2, ecKeyPair.public.encoded,"ECDSA")
-    println("EC verified encoded: $ecVerified2")
-
-    val ecSignature3 = ec.sign(text, ec.keyOrSigToString(ecKeyPair.private.encoded),"ECDSA")
-    val ecVerified3 = ec.verify(
-        text,
-        ec.keyOrSigToString(ecSignature3),
-        ec.keyOrSigToString(ecKeyPair.public.encoded), "ECDSA"
-    )
-    println("EC verified string: $ecVerified3")
+    println("\nPages content:")
+    ledger.pages.forEachIndexed { index, page ->
+        println("Page ${index + 1}: $page")
+    }
 }

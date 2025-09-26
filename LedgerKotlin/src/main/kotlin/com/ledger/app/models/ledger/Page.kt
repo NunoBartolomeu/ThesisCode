@@ -77,7 +77,7 @@ class PageBuilder() {
                 for (i in currentLevel.indices step 2) {
                     val left = currentLevel[i]
                     val right = if (i + 1 < currentLevel.size) currentLevel[i + 1] else left
-                    nextLevel.add(HashProvider.toHashString(HashProvider.hash("$left|$right", hashAlgorithm)))
+                    nextLevel.add(HashProvider.toHexString(HashProvider.hash("$left|$right", hashAlgorithm)))
                 }
                 currentLevel = nextLevel
                 layers.add(nextLevel.toList())
@@ -94,7 +94,7 @@ class PageBuilder() {
             merkleRoot: String,
             hashAlgorithm: String
         ): String {
-            return HashProvider.toHashString(HashProvider.hash(listOf(
+            return HashProvider.toHexString(HashProvider.hash(listOf(
                 ledgerName,
                 number.toString(),
                 timestamp.toString(),

@@ -7,7 +7,7 @@ import java.security.MessageDigest
 @RegisterOnHashProvider
 class SHA3Algorithm : HashAlgorithm {
     override val name = "SHA3-256"
-    override fun hash(data: String): ByteArray {
-        return MessageDigest.getInstance("SHA3-256").digest(data.toByteArray())
+    override fun hash(data: ByteArray): ByteArray {
+        return MessageDigest.getInstance("SHA3-256").digest(data)
     }
 }

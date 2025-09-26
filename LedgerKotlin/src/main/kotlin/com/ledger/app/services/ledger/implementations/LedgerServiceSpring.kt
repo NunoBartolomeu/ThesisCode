@@ -5,7 +5,6 @@ import com.ledger.app.repositories.ledger.LedgerRepo
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.services.pki.PublicKeyInfrastructureService
 import com.ledger.app.utils.ColorLogger
-import com.ledger.app.utils.LogLevel
 import com.ledger.app.utils.RGB
 import com.ledger.app.utils.signature.SignatureProvider
 import jakarta.annotation.PostConstruct
@@ -36,16 +35,13 @@ class LedgerServiceSpring(
     private fun saveEntry(entry: Entry) {
         if (repo.readEntry(entry.id) == null) {
             repo.createEntry(entry)
+        } else {
+            repo.updateEntry(entry)
         }
-        repo.updateEntry(entry)
-        val ledger = getLedger(entry.ledgerName)
-        ledger?.updateEntry(entry)
     }
 
     private fun savePage(page: Page) {
         repo.createPage(page)
-        val ledger = getLedger(page.ledgerName)
-        ledger?.let { it.pages[page.number] = page }
     }
 
     override fun createLedger(name: String, linesPerPage: Int, hashAlgorithm: String) {
@@ -118,12 +114,12 @@ class LedgerServiceSpring(
             listOf(declaringService),
             if (userId != null) listOf(userId) else listOf()
         )!!
-        val signature = SignatureProvider.sign(entry.hash, pkiService.getSystemKeyPair().private, null)
+        val signature = SignatureProvider.sign(entry.hash.toByteArray(), pkiService.getSystemKeyPair().private, null)
         signEntry(
             entryId = entry.id,
             signerId = declaringService,
-            signature = SignatureProvider.keyOrSigToString(signature),
-            publicKey = SignatureProvider.keyOrSigToString(pkiService.getSystemKeyPair().public.encoded),
+            signature = SignatureProvider.toHexString(signature),
+            publicKey = SignatureProvider.toHexString(pkiService.getSystemKeyPair().public.encoded),
             signingAlgorithm = SignatureProvider.getDefaultAlgorithm()
         )
     }
@@ -183,7 +179,7 @@ class LedgerServiceSpring(
 
     override fun getPage(ledgerName: String, number: Int): Page? {
         val ledger = getLedger(ledgerName)
-        return ledger?.pages[number]
+        return ledger?.pages?.toList()[number]
     }
 
     override fun getEntry(entryId: String): Entry? {
@@ -192,20 +188,20 @@ class LedgerServiceSpring(
 
     override fun getEntriesBySender(ledgerName: String, userId: String): List<Entry> {
         val ledger = getLedger(ledgerName) ?: throw IllegalArgumentException("No ledger with name $ledgerName")
-        val entryMap = ledger.holdingArea + ledger.verifiedEntries
-        return entryMap.filter { it.senders.contains(userId) }
+        val entryMap = ledger.unverifiedEntries + ledger.verifiedEntries
+        return entryMap.map { it.value }.filter { it.senders.contains(userId) }
     }
 
     override fun getEntriesByRecipient(ledgerName: String, userId: String): List<Entry> {
         val ledger = getLedger(ledgerName) ?: throw IllegalArgumentException("No ledger with name $ledgerName")
-        val entryMap = ledger.holdingArea + ledger.verifiedEntries
-        return entryMap.filter { it.recipients.contains(userId) }
+        val entryMap = ledger.unverifiedEntries + ledger.verifiedEntries
+        return entryMap.map { it.value }.filter { it.recipients.contains(userId) }
     }
 
     override fun getEntriesByKeyword(ledgerName: String, keyword: String): List<Entry> {
         val ledger = getLedger(ledgerName) ?: throw IllegalArgumentException("No ledger with name $ledgerName")
-        val entryMap = ledger.holdingArea + ledger.verifiedEntries
-        return entryMap.filter { it.keywords.contains(keyword) }
+        val entryMap = ledger.unverifiedEntries + ledger.verifiedEntries
+        return entryMap.map { it.value }.filter { it.keywords.contains(keyword) }
     }
 
     override fun getRelatedEntries(entryId: String): List<Entry> {
@@ -216,12 +212,12 @@ class LedgerServiceSpring(
 
     override fun getEntriesNeedingSignature(ledgerName: String, userId: String): List<Entry> {
         val ledger = getLedger(ledgerName) ?: throw IllegalArgumentException("No ledger with name $ledgerName")
-        return ledger.holdingArea.filter { it.senders.contains(userId) && it.signatures.none { s -> s.signerId == userId } }
+        return ledger.unverifiedEntries.map { it.value }.filter { it.senders.contains(userId) && it.signatures.none { s -> s.signerId == userId } }
     }
 
     override fun getReceipt(userId: String, entryId: String): Receipt {
         val entry = repo.readEntry(entryId) ?: throw IllegalArgumentException("No entry with id $entryId")
         val ledger = getLedger(entry.ledgerName) ?: throw IllegalArgumentException("No ledger with name ${entry.ledgerName}")
-        return ledger.createReceipt(entryId, userId, pkiService.getSystemKeyPair())
+        return ledger.createReceipt(entryId, userId, pkiService.getSystemKeyPair(), SignatureProvider.getDefaultAlgorithm())
     }
 }

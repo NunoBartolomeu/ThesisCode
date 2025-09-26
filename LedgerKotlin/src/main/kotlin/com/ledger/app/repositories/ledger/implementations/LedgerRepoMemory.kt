@@ -7,6 +7,7 @@ import com.ledger.app.models.ledger.Page
 import com.ledger.app.repositories.ledger.LedgerRepo
 import org.springframework.stereotype.Repository
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
@@ -51,7 +52,7 @@ class LedgerRepoMemory : LedgerRepo {
                     page.copy(entries = pageEntries.toMutableList())
                 }
 
-            baseLedger.copy(pages = CopyOnWriteArrayList(ledgerPages))
+            baseLedger.copy(pages = ConcurrentLinkedQueue<Page>().apply { addAll(ledgerPages) })
         }
     }
 

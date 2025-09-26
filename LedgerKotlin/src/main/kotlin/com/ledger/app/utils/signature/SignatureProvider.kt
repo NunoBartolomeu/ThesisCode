@@ -18,35 +18,32 @@ object SignatureProvider {
         require(algorithms.isNotEmpty()) { "No SignatureAlgorithm implementations registered." }
     }
 
-    fun keyOrSigToString(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
-    fun keyOrSigToByteArray(hex: String): ByteArray = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-    fun dataToString(data: ByteArray): String = String(data)
-    fun dataToByteArray(data: String): ByteArray = data.toByteArray()
+    fun toHexString(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
+    fun hexToByteArray(hex: String): ByteArray = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
-    fun resolve(name: String?): SignatureAlgorithm =
+    private fun resolve(name: String?): SignatureAlgorithm =
         algorithms[name ?: algorithms.keys.first()]
             ?: throw IllegalArgumentException("Unsupported signature algorithm: $name")
 
-    fun sign(data: String, privateKey: PrivateKey, algorithm: String?): ByteArray =
-        resolve(algorithm).sign(dataToByteArray(data), privateKey)
-
-    fun sign(data: String, encodedPrivateKey: ByteArray, algorithm: String?): ByteArray =
-        resolve(algorithm).let { it.sign(dataToByteArray(data), it.bytesToPrivateKey(encodedPrivateKey)) }
+    fun sign(data: ByteArray, privateKey: PrivateKey, algorithm: String?): ByteArray =
+        resolve(algorithm).sign(data, privateKey)
 
     fun sign(data: String, hexPrivateKey: String, algorithm: String?): ByteArray =
-        sign(data, keyOrSigToByteArray(hexPrivateKey), algorithm)
+        sign(data.toByteArray(), bytesToPrivateKey(hexToByteArray(hexPrivateKey), algorithm), algorithm)
 
-    fun verify(data: String, signature: ByteArray, publicKey: PublicKey, algorithm: String?): Boolean =
-        resolve(algorithm).verify(dataToByteArray(data), signature, publicKey)
-
-    fun verify(data: String, signature: ByteArray, encodedPublicKey: ByteArray, algorithm: String?): Boolean =
-        resolve(algorithm).let { it.verify(dataToByteArray(data), signature, it.bytesToPublicKey(encodedPublicKey)) }
+    fun verify(data: ByteArray, signature: ByteArray, publicKey: PublicKey, algorithm: String?): Boolean =
+        resolve(algorithm).verify(data, signature, publicKey)
 
     fun verify(data: String, hexSignature: String, hexPublicKey: String, algorithm: String?): Boolean =
-        verify(data, keyOrSigToByteArray(hexSignature), keyOrSigToByteArray(hexPublicKey), algorithm)
+        verify(data.toByteArray(), hexToByteArray(hexSignature), resolve(algorithm).bytesToPublicKey(hexToByteArray(hexPublicKey)), algorithm)
 
     fun generateKeyPair(algorithm: String?): KeyPair =
         resolve(algorithm).generateKeyPair()
+    fun bytesToPublicKey(encodedPublicKey: ByteArray, algorithm: String?): PublicKey =
+        resolve(algorithm).bytesToPublicKey(encodedPublicKey)
+
+    fun bytesToPrivateKey(encodedPrivateKey: ByteArray, algorithm: String?): PrivateKey =
+        resolve(algorithm).bytesToPrivateKey(encodedPrivateKey)
 
     fun isSupported(name: String): Boolean = algorithms.containsKey(name)
     fun getSupportedAlgorithms(): Set<String> = algorithms.keys.toSet()

@@ -10,6 +10,7 @@ import com.ledger.app.repositories.ledger.LedgerRepo
 import org.postgresql.util.PGobject
 import org.springframework.stereotype.Repository
 import java.sql.Connection
+import java.util.concurrent.ConcurrentLinkedQueue
 import javax.sql.DataSource
 
 @Repository
@@ -151,7 +152,7 @@ class LedgerRepoJDBC(
             )
 
             // Load pages
-            val pages = mutableListOf<Page>()
+            val pages = ConcurrentLinkedQueue<Page>()
             conn.prepareStatement("SELECT * FROM pages WHERE ledger_name=? ORDER BY number").use { ps2 ->
                 ps2.setString(1, ledgerName)
                 val rs2 = ps2.executeQuery()
@@ -171,7 +172,7 @@ class LedgerRepoJDBC(
                 }
             }
 
-            Ledger(config = config, pages = pages.toMutableList())
+            return Ledger(config = config, pages = pages)
         }
     }
 

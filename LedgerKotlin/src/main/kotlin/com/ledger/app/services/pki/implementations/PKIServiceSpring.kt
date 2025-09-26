@@ -47,8 +47,8 @@ class PKIServiceSpring(
     override fun getUserCertificate(userId: String): Certificate? = pkiRepo.loadUserCertificate(userId)
 
     override fun associatePublicKeyToUser(userId: String, hexPublicKey: String, algorithm: String): Certificate {
-        val publicKeyBytes = SignatureProvider.keyOrSigToByteArray(hexPublicKey)
-        val publicKey = SignatureProvider.resolve(algorithm).bytesToPublicKey(publicKeyBytes)
+        val publicKeyBytes = SignatureProvider.hexToByteArray(hexPublicKey)
+        val publicKey = SignatureProvider.bytesToPublicKey(publicKeyBytes, algorithm)
 
         val userCertificate = createUserCertificate(userId, publicKey)
         pkiRepo.saveUserCertificate(userId, userCertificate)
@@ -188,8 +188,8 @@ class PKIServiceSpring(
 
     private fun keyMatchesCertificate(keyPair: KeyPair, certificate: X509Certificate): Boolean {
         return try {
-            val signature = SignatureProvider.sign(TEST_MESSAGE, keyPair.private, null)
-            val isValid = SignatureProvider.verify(TEST_MESSAGE, signature, certificate.publicKey, null)
+            val signature = SignatureProvider.sign(TEST_MESSAGE.toByteArray(), keyPair.private, null)
+            val isValid = SignatureProvider.verify(TEST_MESSAGE.toByteArray(), signature, certificate.publicKey, null)
             if (!isValid) {
                 logger.warn("Private key does not match certificate public key")
             }

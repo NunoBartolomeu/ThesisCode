@@ -1,6 +1,5 @@
 package com.ledger.app.utils.hash
 
-import com.ledger.app.utils.signature.SignatureProvider
 import org.reflections.Reflections
 
 object HashProvider {
@@ -16,16 +15,20 @@ object HashProvider {
         require(algorithms.isNotEmpty()) { "No HashAlgorithm implementations registered." }
     }
 
-    fun toHashString(byteArray: ByteArray): String =
+    fun toHexString(byteArray: ByteArray): String =
         byteArray.joinToString("") { "%02x".format(it) }
 
     fun toHashByteArray(string: String): ByteArray =
         string.toByteArray()
 
-    fun hash(data: String, algorithm: String): ByteArray {
+    fun hash(data: ByteArray, algorithm: String): ByteArray {
         val hashAlgorithm = algorithms[algorithm]
             ?: throw IllegalArgumentException("Unsupported hash algorithm: $algorithm")
         return hashAlgorithm.hash(data)
+    }
+
+    fun hash(data: String, algorithm: String): ByteArray {
+        return hash(data.toByteArray(), algorithm)
     }
 
     fun isSupported(algorithmName: String): Boolean =

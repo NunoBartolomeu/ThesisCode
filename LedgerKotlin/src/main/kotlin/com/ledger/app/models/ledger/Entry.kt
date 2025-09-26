@@ -47,6 +47,10 @@ class EntryBuilder() {
     private var ledgerName: String?= null
     private var hashAlgorithm: String? = null
 
+    private val keywords = mutableListOf<String>()
+
+    private val relatedEntries = mutableListOf<String>()
+
     constructor(
         id: String,
         timestamp: Long,
@@ -54,7 +58,9 @@ class EntryBuilder() {
         senders: List<String>,
         recipients: List<String> = emptyList(),
         ledgerName: String,
-        hashAlgorithm: String
+        hashAlgorithm: String,
+        keywords: List<String> = emptyList(),
+        relatedEntries: List<String> = emptyList(),
     ) : this() {
         this.id = id
         this.timestamp = timestamp
@@ -63,6 +69,8 @@ class EntryBuilder() {
         this.recipients.addAll(recipients)
         this.ledgerName = ledgerName
         this.hashAlgorithm = hashAlgorithm
+        this.keywords.addAll(keywords)
+        this.relatedEntries.addAll(relatedEntries)
     }
 
     fun id(id: String) = apply { this.id = id }
@@ -87,6 +95,10 @@ class EntryBuilder() {
 
     fun ledgerName(ledgerName: String) = apply { this.ledgerName = ledgerName }
 
+    fun addKeyword(keyword: String) = apply { this.keywords.add(keyword) }
+
+    fun addRelatedEntry(relatedEntry: String) = apply { this.keywords.add(relatedEntry) }
+
     companion object {
         fun computeHash(
             id: String,
@@ -96,7 +108,7 @@ class EntryBuilder() {
             recipients: List<String>,
             hashAlgorithm: String
         ): String {
-            return HashProvider.toHashString(HashProvider.hash(listOf(
+            return HashProvider.toHexString(HashProvider.hash(listOf(
                 id,
                 timestamp.toString(),
                 content,
@@ -133,8 +145,8 @@ class EntryBuilder() {
             signatures = emptyList(),
             ledgerName = entryLedgerName,
             pageNum = null,
-            relatedEntries = emptyList(),
-            keywords = emptyList(),
+            relatedEntries = keywords,
+            keywords = relatedEntries,
         )
     }
 }

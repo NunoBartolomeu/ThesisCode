@@ -71,8 +71,8 @@ fun Ledger.toLedgerDTO(userId: String): LedgerDTO {
         name = config.name,
         entriesPerPage = config.entriesPerPage,
         hashAlgorithm = config.hashAlgorithm,
-        verifiedEntries = verifiedEntries.map { it.toPageEntryDTO(userId) },
-        unverifiedEntries = holdingArea.map { it.toPageEntryDTO(userId) },
+        verifiedEntries = verifiedEntries.map { it.value.toPageEntryDTO(userId) },
+        unverifiedEntries = unverifiedEntries.map { it.value.toPageEntryDTO(userId) },
         pages = pages.map { it.toPageSummaryDTO() }
     )
 }

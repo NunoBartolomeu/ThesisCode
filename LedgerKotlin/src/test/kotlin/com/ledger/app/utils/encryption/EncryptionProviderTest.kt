@@ -11,8 +11,7 @@ class EncryptionProviderTest {
     private val testData = "Hello, World!"
 
     @Test
-    @DisplayName("Test encrypt and decrypt for all supported algorithms")
-    fun testEncryptDecryptAllAlgorithms() {
+    fun `Test encrypt and decrypt for all supported algorithms`() {
         val algorithms = EncryptionProvider.getSupportedAlgorithms()
         assertTrue(algorithms.isNotEmpty(), "No encryption algorithms registered")
 
@@ -22,7 +21,7 @@ class EncryptionProviderTest {
             assertTrue(payload.cipherText.isNotEmpty(), "Ciphertext should not be empty for $algorithm")
 
             val decryptedBytes = EncryptionProvider.decrypt(payload, payload.encryptedKey, algorithm)
-            val decryptedText = EncryptionProvider.dataToString(decryptedBytes)
+            val decryptedText = String(decryptedBytes)
 
             assertEquals(testData, decryptedText, "Decrypted text should match original for $algorithm")
         }

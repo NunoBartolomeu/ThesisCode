@@ -345,7 +345,7 @@ class LedgerWarden(
             page.previousHash,
             page.merkleRoot,
         ).joinToString("|")
-        return HashProvider.toHashString(HashProvider.hash(data, hashAlgorithm))
+        return HashProvider.toHexString(HashProvider.hash(data, hashAlgorithm))
     }
 
     private fun calculateEntryHash(entry: Entry, hashAlgorithm: String): String {
@@ -356,6 +356,6 @@ class LedgerWarden(
             entry.senders.joinToString(","),
             entry.recipients.joinToString(",")
         ).joinToString("|")
-        return HashProvider.toHashString(HashProvider.hash(data, hashAlgorithm))
+        return HashProvider.toHexString(HashProvider.hash(data, hashAlgorithm))
     }
 }
