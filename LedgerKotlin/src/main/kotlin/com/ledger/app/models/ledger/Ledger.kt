@@ -25,6 +25,17 @@ data class Ledger(
 ) {
     private val batchLock = ReentrantLock()
 
+
+    ////// TESTING ONLY //////
+    private inline fun <T> measureTimeMs(block: () -> T): Pair<T, Double> {
+        val start = System.nanoTime()
+        val result = block()
+        val elapsedMs = (System.nanoTime() - start) / 1_000_000.0
+        return result to elapsedMs
+    }
+    val pageCreationTimesInMs = ConcurrentLinkedQueue<Double>()
+
+
     fun createEntry(content: String, senders: List<String>, recipients: List<String>, relatedEntries: List<String>, keywords: List<String>): Entry {
         val builder = EntryBuilder(
             id = UUID.randomUUID().toString(),
@@ -180,28 +191,31 @@ data class Ledger(
         if (verifiedEntries.size >= config.entriesPerPage) {
             batchLock.withLock {
                 if (verifiedEntries.size >= config.entriesPerPage) {
-                    val snapshot = mutableListOf<Entry>()
-                    val keysToRemove = mutableListOf<String>()
+                    val (_, time) = measureTimeMs {
+                        val snapshot = mutableListOf<Entry>()
+                        val keysToRemove = mutableListOf<String>()
 
-                    verifiedEntries.forEach { (entryId, entry) ->
-                        if (snapshot.size < config.entriesPerPage) {
-                            snapshot.add(entry)
-                            keysToRemove.add(entryId)
+                        verifiedEntries.forEach { (entryId, entry) ->
+                            if (snapshot.size < config.entriesPerPage) {
+                                snapshot.add(entry)
+                                keysToRemove.add(entryId)
+                            }
                         }
+
+                        keysToRemove.forEach { verifiedEntries.remove(it) }
+                        val pageNum = pages.size
+
+                        val builder = PageBuilder(
+                            ledgerName = this.config.name,
+                            number = pageNum,
+                            timestamp = System.currentTimeMillis(),
+                            previousHash = pages.lastOrNull()?.hash,
+                            entries = snapshot.map { it.copy(pageNum = pageNum) },
+                            hashAlgorithm = config.hashAlgorithm
+                        )
+                        pages.add(builder.build())
                     }
-
-                    keysToRemove.forEach { verifiedEntries.remove(it) }
-                    val pageNum = pages.size
-
-                    val builder = PageBuilder(
-                        ledgerName = this.config.name,
-                        number = pageNum,
-                        timestamp = System.currentTimeMillis(),
-                        previousHash = pages.lastOrNull()?.hash,
-                        entries = snapshot.map { it.copy(pageNum = pageNum)},
-                        hashAlgorithm = config.hashAlgorithm
-                    )
-                    pages.add(builder.build())
+                    pageCreationTimesInMs.add(time)
                 }
             }
         }

@@ -35,7 +35,6 @@ class EntryTest {
 
     @Nested
     inner class CreationPhase {
-
         @Test
         fun `create entry with single sender and no recipients`() {
             val entry = buildBasicEntry()
