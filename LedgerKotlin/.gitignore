@@ -42,6 +42,8 @@ bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 
+/users_pki/
+
 # NetBeans
 /nbproject/private/
 /nbbuild/
