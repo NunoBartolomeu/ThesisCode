@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { LedgerService } from '@/services/api/LedgerService';
 import { LedgerDTO, PageDTO, EntryDTO } from '@/models/ledger_dto';
+import { AuthStorageService } from '@/services/storage/AuthStorageService';
 
 interface LedgerState {
   ledgers: string[];
@@ -197,6 +198,19 @@ export function useLedgerViewModel() {
     }
   }, []);
 
+const signEntry = useCallback(async (entryId: string, signatureData: string, publicKey: string, algorithm: string) => {
+    const user = AuthStorageService.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    const result = await ledgerService.signEntry(entryId, user.id, signatureData, publicKey, algorithm);
+    if (result.success) {
+      await loadEntry(entryId);
+    }
+    return result;
+  }, [loadEntry]);
+
   // ---- Handle Add Keywords (Business Logic) ----
   const handleAddKeywords = useCallback(async (entryId: string, keywordsInput: string) => {
     if (!keywordsInput.trim()) {
@@ -301,6 +315,7 @@ export function useLedgerViewModel() {
     loadLedger,
     loadPage,
     loadEntry,
+    signEntry,
     handleAddKeywords,   
     handleRemoveKeyword,  
     retryLastOperation,

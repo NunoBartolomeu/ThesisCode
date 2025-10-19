@@ -388,17 +388,17 @@ class LedgerRepoJDBC(
                 ps.executeUpdate()
             }
 
-            // Add new signatures without removing existing ones
+            // Update signatures without removing existing ones
             entry.signatures.forEach { sig ->
                 conn.prepareStatement(
-                    "INSERT INTO entry_senders (entry_id, user_id, public_key, sig_data, algorithm) " +
-                            "VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING"
+                    "UPDATE entry_senders SET public_key = ?, sig_data = ?, algorithm = ? " +
+                            "WHERE entry_id = ? AND user_id = ?"
                 ).use { ps ->
-                    ps.setString(1, entry.id)
-                    ps.setString(2, sig.signerId)
-                    ps.setString(3, sig.publicKey)
-                    ps.setString(4, sig.signatureData)
-                    ps.setString(5, sig.algorithm)
+                    ps.setString(1, sig.publicKey)
+                    ps.setString(2, sig.signatureData)
+                    ps.setString(3, sig.algorithm)
+                    ps.setString(4, entry.id)
+                    ps.setString(5, sig.signerId)
                     ps.executeUpdate()
                 }
             }

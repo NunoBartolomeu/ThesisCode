@@ -33,6 +33,19 @@ export class LedgerService {
     });
   }
 
+  async signEntry(entryId: string, signerId: string, signatureData: string, publicKey: string, algorithm: string): Promise<ApiResponse<{ message: string }>> {
+    return await this.fetcher.request<{ message: string }>(`${this.baseUrl}/entry/${entryId}/sign`, {
+      method: 'POST',
+      body: {
+        signerId,
+        publicKey,
+        signatureData,
+        algorithm
+      },
+      requireAuth: true,
+    });
+  }
+  
   async addKeywords(entryId: string, keywords: string[]): Promise<ApiResponse<{ message: string }>> {
     return await this.fetcher.request<{ message: string }>(`${this.baseUrl}/entry/${entryId}/keywords`, {
       method: 'POST',

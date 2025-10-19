@@ -21,11 +21,13 @@ class ECSignatureAlgorithm implements SignatureAlgorithm {
   };
 
   async sign(data: ArrayBuffer, privateKey: CryptoKey): Promise<ArrayBuffer> {
-    return await crypto.subtle.sign(this.signAlgorithm, privateKey, data);
+    const rawSig = await crypto.subtle.sign(this.signAlgorithm, privateKey, data);
+    return this.rawToDER(rawSig);
   }
 
   async verify(data: ArrayBuffer, signature: ArrayBuffer, publicKey: CryptoKey): Promise<boolean> {
-    return await crypto.subtle.verify(this.signAlgorithm, publicKey, signature, data);
+    const rawSig = this.derToRaw(signature);
+    return await crypto.subtle.verify(this.signAlgorithm, publicKey, rawSig, data);
   }
 
   async generateKeyPair(): Promise<CryptoKeyPair> {
@@ -54,6 +56,65 @@ class ECSignatureAlgorithm implements SignatureAlgorithm {
       true,
       ["sign"]
     );
+  }
+
+  private rawToDER(rawSig: ArrayBuffer): ArrayBuffer {
+    const view = new Uint8Array(rawSig);
+    const r = view.slice(0, 32);
+    const s = view.slice(32, 64);
+
+    const rDER = this.integerToDER(r);
+    const sDER = this.integerToDER(s);
+
+    const sequence = new Uint8Array(2 + rDER.length + sDER.length);
+    sequence[0] = 0x30; // SEQUENCE tag
+    sequence[1] = rDER.length + sDER.length;
+    sequence.set(rDER, 2);
+    sequence.set(sDER, 2 + rDER.length);
+
+    return sequence.buffer.slice(sequence.byteOffset, sequence.byteOffset + sequence.byteLength);
+  }
+
+  private derToRaw(derSig: ArrayBuffer): ArrayBuffer {
+    const view = new Uint8Array(derSig);
+    let offset = 0;
+
+    if (view[offset] !== 0x30) throw new Error("Invalid DER signature");
+    offset++;
+    const seqLen = view[offset];
+    offset++;
+
+    const [r, rLen] = this.derToInteger(view, offset);
+    offset += 2 + rLen;
+
+    const [s, sLen] = this.derToInteger(view, offset);
+
+    const raw = new Uint8Array(64);
+    raw.set(r.slice(-32), 0);
+    raw.set(s.slice(-32), 32);
+
+    return raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+  }
+
+  private integerToDER(bytes: Uint8Array): Uint8Array {
+    let value = bytes;
+    if (bytes[0] & 0x80) {
+      value = new Uint8Array(bytes.length + 1);
+      value[0] = 0x00;
+      value.set(bytes, 1);
+    }
+    const result = new Uint8Array(2 + value.length);
+    result[0] = 0x02; // INTEGER tag
+    result[1] = value.length;
+    result.set(value, 2);
+    return result;
+  }
+
+  private derToInteger(view: Uint8Array, offset: number): [Uint8Array, number] {
+    if (view[offset] !== 0x02) throw new Error("Invalid DER integer");
+    const len = view[offset + 1];
+    const value = view.slice(offset + 2, offset + 2 + len);
+    return [value, len];
   }
 }
 

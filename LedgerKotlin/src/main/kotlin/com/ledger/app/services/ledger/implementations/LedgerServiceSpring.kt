@@ -79,11 +79,15 @@ class LedgerServiceSpring(
 
         val lastPageNumber = ledger.pages.lastOrNull()?.number ?: -100
         val sig = Entry.Signature(signerId, publicKey, signature, signingAlgorithm)
+
+        println("Signature: $sig")
         val signedEntry = ledger.addSignature(entryId, sig)
 
         val newLastPageNumber = ledger.pages.lastOrNull()?.number ?: -100
 
         repo.updateEntry(signedEntry)
+        val updatedEntry = repo.readEntry(entryId)
+        println("ENTRY UPDATED: $updatedEntry")
         logger.info("Signature was added to entry ${entry.id}")
 
         if (lastPageNumber != newLastPageNumber) {

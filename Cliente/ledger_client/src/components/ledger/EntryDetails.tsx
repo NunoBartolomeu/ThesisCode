@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLedgerViewModel } from '@/viewmodels/useLedgerViewModel';
+import { usePKIViewModel } from '@/viewmodels/usePKIViewModel';
 import { Loading } from '@/components/ui/Loading';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { ListingContainer } from '@/components/ui/ListingContainer';
@@ -30,13 +31,19 @@ export function EntryDetails({ onGoBack }: EntryDetailsProps) {
     handleAddKeywords, 
     handleRemoveKeyword,
     clearUserMessage,
-    retryLastOperation 
+    retryLastOperation,
+    signEntry 
   } = useLedgerViewModel();
 
+  const {
+    keyPair,
+    signData,
+    hasKeyPair,
+    getKeyPairAlgorithm
+  } = usePKIViewModel();
+
   const [newKeywords, setNewKeywords] = useState<string>('');
-
-
-
+  const [signingInProgress, setSigningInProgress] = useState(false);
 
   // Add this after loading entry data
   useEffect(() => {
@@ -47,14 +54,6 @@ export function EntryDetails({ onGoBack }: EntryDetailsProps) {
       console.log('Signatures length:', currentEntry.signatures?.length);
     }
   }, [currentEntry]);
-
-
-
-
-
-
-
-
 
   useEffect(() => {
     if (entryId) {
@@ -95,6 +94,43 @@ export function EntryDetails({ onGoBack }: EntryDetailsProps) {
 
   const onNavigateToRelatedEntry = (relatedId: string) => {
     router.push(`/entry-details?entry=${encodeURIComponent(relatedId)}`);
+  };
+
+  const hasUserSigned = (): boolean => {
+    if (!currentEntry || !keyPair) return true;
+    return currentEntry.signatures.some(sig => sig.publicKey === keyPair.publicKey);
+  };
+
+  const handleSignEntry = async () => {
+    if (!currentEntry || !keyPair || !hasKeyPair()) {
+      console.error('Cannot sign: missing entry or key pair');
+      return;
+    }
+
+    setSigningInProgress(true);
+    try {
+      // Sign the entry hash
+      const signatureHex = await signData(currentEntry.hash);
+      
+      // Call the service to add the signature to the entry
+
+      const result = await signEntry(
+        currentEntry.id,
+        signatureHex,
+        keyPair.publicKey,
+        getKeyPairAlgorithm()!!
+      );
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to sign entry');
+      }
+      
+    } catch (err) {
+      console.error('Error signing entry:', err);
+      // Handle error - show error message to user
+    } finally {
+      setSigningInProgress(false);
+    }
   };
 
   if (loading) {
@@ -274,6 +310,49 @@ export function EntryDetails({ onGoBack }: EntryDetailsProps) {
             </div>
           </div>
         </div>
+
+        {/* Sign Entry Section */}
+        {!hasUserSigned() && hasKeyPair() && (
+          <div className="rounded-2xl shadow-xl border-2 overflow-hidden" style={{ background: 'var(--gradient)', borderColor: 'var(--border)' }}>
+            <div className="px-6 py-4 border-b-2 flex items-center space-x-3" style={{ borderColor: 'var(--border)' }}>
+              <Icons.Signature />
+              <h2 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Sign Entry</h2>
+            </div>
+            <div className="p-6">
+              <p className="mb-4" style={{ color: 'var(--text)' }}>
+                Sign this entry with your private key to confirm your participation.
+              </p>
+              <button
+                onClick={handleSignEntry}
+                disabled={signingInProgress}
+                className="px-6 py-2 rounded text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: 'var(--primary)' }}
+              >
+                {signingInProgress ? 'Signing...' : 'Sign Entry'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Show message if already signed */}
+        {hasUserSigned() && (
+          <div className="rounded-2xl shadow-xl border-2 overflow-hidden p-6" style={{ background: 'var(--success)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center space-x-2">
+              <Icons.Signature />
+              <span style={{ color: 'white' }}>You have already signed this entry</span>
+            </div>
+          </div>
+        )}
+
+        {/* Show message if no key pair */}
+        {!hasKeyPair() && (
+          <div className="rounded-2xl shadow-xl border-2 overflow-hidden p-6" style={{ background: 'var(--danger)', borderColor: 'var(--border)' }}>
+            <div className="flex items-center space-x-2">
+              <Icons.Shield />
+              <span style={{ color: 'white' }}>Generate or import a key pair to sign entries</span>
+            </div>
+          </div>
+        )}
 
         {/* Related Entries */}
         {currentEntry.relatedEntryIds.length > 0 && (

@@ -1,6 +1,7 @@
 package com.ledger.app.controllers
 
 import com.ledger.app.dtos.*
+import com.ledger.app.models.ledger.Entry
 import com.ledger.app.services.auth.AuthService
 import com.ledger.app.services.ledger.LedgerService
 import com.ledger.app.utils.ColorLogger
@@ -82,6 +83,21 @@ class LedgerController(
         logger.debug("Entry $entryId fetched successfully")
         logger.debug("Entry data: $entry")
         return ResponseEntity.ok(entry.toEntryDTO(userId, authService))
+    }
+
+    @PostMapping("/entry/{entryId}/sign")
+    fun signEntry(
+        @PathVariable entryId: String,
+        @RequestBody signature: Entry.Signature
+    ): ResponseEntity<Void> {
+        logger.info("Signing entry $entryId with signature: $signature")
+        ledgerService.signEntry(entryId, signature.signerId, signature.signatureData, signature.publicKey, signature.algorithm)
+        val entry = ledgerService.getEntry(entryId)
+        if (entry!!.signatures.any { it.signerId == signature.signerId })
+            logger.debug("Signature was added sucessfully")
+        else
+            logger.warn("Signature was not added")
+        return ResponseEntity.ok(null)
     }
 
     @PostMapping("/entry/{entryId}/keywords")
