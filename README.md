@@ -2,7 +2,13 @@
 
 ## About
 
-This project was developed as a proof-of-concept centralized ledger system designed for enterprise integration. It demonstrates a secure, tamper-evident record-keeping solution that can be adapted to various company needs and existing infrastructure.
+This project was developed at Instituto Superior de Engenharia de Lisboa (ISEL) as a proof-of-concept centralized ledger system designed for enterprise integration. It demonstrates a secure, tamper-evident record-keeping solution that can be adapted to various company needs and existing infrastructure.
+
+## Authors
+
+Nuno Bartolomeu - a47233@alunos.isel.pt
+Nuno Leite - nuno.leite@isel.pt
+João Pereira - joaomiguel.pereira@cofidis.pt
 
 ## Purpose
 
