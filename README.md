@@ -6,9 +6,9 @@ This project was developed at Instituto Superior de Engenharia de Lisboa (ISEL) 
 
 ## Authors
 
-Nuno Bartolomeu - a47233@alunos.isel.pt
-Nuno Leite - nuno.leite@isel.pt
-João Pereira - joaomiguel.pereira@cofidis.pt
+- Nuno Bartolomeu - a47233@alunos.isel.pt
+- Nuno Leite - nuno.leite@isel.pt
+- João Pereira - joaomiguel.pereira@cofidis.pt
 
 ## Purpose
 
